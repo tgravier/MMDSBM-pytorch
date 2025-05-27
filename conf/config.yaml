@@ -1,0 +1,14 @@
+# conf/config.yaml
+defaults:
+  - job
+  - models: TODO
+  - method: dsbm  # n-dsbm pour N-marginals
+  - marginals: 2marginals  # référence au fichier ci-dessus
+
+name: n-dsbm_${datasets.n_marginals}
+run: 0
+seed: 42
+
+paths:
+  experiments_dir_name: experiments
+  data_dir_name: data

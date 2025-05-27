@@ -1,0 +1,29 @@
+# --- Global Bridge Config
+nb_marginals: 3
+sep_train_val: true
+train_frac: 0.8
+
+normalisation:
+  active: true
+  type: standard
+
+marginals:
+  - type: artificial
+    time: 0
+    distribution_name: gaussian
+    params:
+      mean: 0
+      std: 1
+      dim: 2
+
+  - type: artificial
+    distribution_name: spiral
+    time: 0.5
+    params:
+      dim: 2
+
+  - type: real
+    distribution_name: mnist
+    time: 1
+    path: ./datasets/data/mnist/
+    params: {}
