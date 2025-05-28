@@ -56,7 +56,7 @@ def get_brownian_bridge(args,
 
 
 @torch.no_grad()
-def sample_sde(zstart: torch.Tensor, net_dict, direction_tosample: str, N: int = 1000, sig: float = 1.0, device: str = "cuda"):
+def sample_sde(zstart: torch.Tensor, net_dict, direction_tosample: str, N: int = 1000, sig: float = 1.0, device: str = "cuda"): #TODO put T_min and T_max 
     assert direction_tosample in ['forward', 'backward']
 
 
@@ -75,7 +75,7 @@ def sample_sde(zstart: torch.Tensor, net_dict, direction_tosample: str, N: int =
 
     for i in range(N):
         t = torch.full((batchsize, 1), ts[i], device=device)
-        pred = score(z, t)
+        pred = score(z, t) 
         z = z.detach().clone() + pred * dt
         z = z + sig * torch.randn_like(z) * np.sqrt(dt)
         traj.append(z.detach().clone())

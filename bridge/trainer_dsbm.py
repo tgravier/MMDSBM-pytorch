@@ -11,12 +11,13 @@ import matplotlib.pyplot as plt
 
 import bridge.sde.bridge_sampler as sampler
 from utils.visualization import draw_plot, plot_moment
+#from bridge.nbridges import N_BRIDGES
 
 from utils.metric import get_classic_metrics
 
 
 
-""" In this file we implement the main class for the training, it represent the inner and outer
+""" In this file we implement the main class for the training of 1 bridges, it represent the inner and outer
     iteration of Algorithm 1 of Shi &  Al 2023
 """
 
@@ -78,18 +79,27 @@ class IMF_DSBM:
 
             self.losses_forward.extend(loss_fwd)
             self.losses_backward.extend(loss_bwd)
+        
+        return self.net_dict
             
     def train_one_direction(self, x_pairs, direction: str, outer_iter_idx: int):
 
         loss_curve = []
 
         # 0. generate initial and final points
-        dl = iter(DataLoader(TensorDataset(*self.generate_dataloaders(
-                    args = self.args,
-                    x_pairs= x_pairs,
-                    direction_to_train= direction,
-                    outer_iter_idx= outer_iter_idx,
-                    first_coupling=self.args.first_coupling)), batch_size= self.args.batch_size, shuffle = True, pin_memory= False, drop_last = True)
+        dl = iter(DataLoader(
+            TensorDataset(
+                *self.generate_dataloaders(
+                        args = self.args,
+                        x_pairs= x_pairs,
+                        direction_to_train= direction,
+                        outer_iter_idx= outer_iter_idx,
+                        first_coupling=self.args.first_coupling)),
+                    
+                batch_size= self.args.batch_size,
+                shuffle = True,
+                pin_memory= False,
+                drop_last = True)
                 )
 
         pbar = tqdm(range(self.args.nb_inner_opt_steps), desc=f"{direction} | Outer {outer_iter_idx}")
@@ -124,7 +134,7 @@ class IMF_DSBM:
 
             pred = self.net_dict[direction](x_bridge_t, t)
             
-            # 4. compute loss, backward, and optim step
+            # 4. compute loss, backward, and optim step  #TODO deplace this in an abstract fonction which tract the train totally
             loss = (target - pred).view(pred.shape[0], -1).abs().pow(2).sum(dim=1)
             loss = loss.mean()
             self.accelerator.backward(loss)
@@ -322,3 +332,4 @@ class IMF_DSBM:
     ):
 
         raise NotImplementedError
+
