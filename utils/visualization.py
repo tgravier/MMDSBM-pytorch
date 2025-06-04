@@ -39,7 +39,9 @@ def draw_plot(
     args,
     z0: torch.Tensor,
     z1: torch.Tensor,
+    t_pairs,
     direction: str,
+    num_bridges:int,
     outer_iter_idx: int,
     num_samples: int = 1000,
     num_steps: int = 1000,
@@ -64,6 +66,7 @@ def draw_plot(
         generated_samples = sample_sde(
             zstart=z0_sampled,
             net_dict=model.net_dict,
+            t_pairs = t_pairs,
             direction_tosample=direction,
             N=num_steps,
             sig=sigma,
@@ -73,6 +76,7 @@ def draw_plot(
         generated_samples = sample_sde(
             zstart=z1_sampled,
             net_dict=model.net_dict,
+            t_pairs = t_pairs,
             direction_tosample=direction,
             N=num_steps,
             sig=sigma,
@@ -110,9 +114,10 @@ def draw_plot(
     plt.grid(True)
     plt.tight_layout()
 
-    save_path = os.path.join(folder_fig, f"{direction}_iter_{outer_iter_idx}.png")
+    save_path = os.path.join(folder_fig, f"{direction}_bridges_{num_bridges}_iter_{outer_iter_idx}.png")
     plt.savefig(save_path, dpi=300)
     plt.close()
+
 
 
 

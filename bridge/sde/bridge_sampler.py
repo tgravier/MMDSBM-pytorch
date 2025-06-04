@@ -10,79 +10,80 @@ from torch.utils.data import DataLoader, TensorDataset
 
 
 
-def get_brownian_bridge(args,
-                        x_pairs,
-                        direction: str,
-                        ) -> Tuple[Tensor, Tensor, Tensor]:
+def get_brownian_bridge(
+    args,
+    x_pairs: torch.Tensor,
+    t_pairs: torch.Tensor,
+    direction: str,
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """
+    Simulates a Brownian bridge between t1 and t2 with z0 at t1 and z1 at t2.
 
+    Args:
+        args: object with attributes args.sigma, args.eps, and args.accelerator.device
+        x_pairs: Tensor of shape [batch, 2, dim] containing (z0, z1)
+        t_pairs: Tensor of shape [2] containing (t1, t2)
+        direction: "forward" or "backward"
 
+    Returns:
+        z_t: sample from the Brownian bridge at time t
+        t: sampled time tensor [batch, 1]
+        target: estimated score (∇ log p(x_t))
+    """
 
     device = args.accelerator.device
-    z0, z1 = x_pairs[:, 0], x_pairs[:, 1] # direction t0 -> t1
+    z0, z1 = x_pairs[:, 0], x_pairs[:, 1]         # values at t1 and t2
+    t1, t2 = t_pairs     # time bounds reshaped to [batch, 1]
 
-    
+    # Sample t uniformly in (t1 + eps, t2 - eps) to avoid sqrt(0) issues
+    t = torch.rand((z0.shape[0], 1), device=device)
+    t = t1 + (t2 - t1) * ((1 - 2 * args.eps) * t + args.eps)
 
-    t = torch.rand((z1.shape[0], 1), device= device) * (1-2*args.eps) + args.eps # to avoid sqrt(neg) during brownian bridge
-    
+    # Normalize time to [0, 1] as s = (t - t1) / (t2 - t1)
+    s = (t - t1) / (t2 - t1)
 
+    # Compute the mean of the Brownian bridge at time t
+    z_t = (1 - s) * z0 + s * z1
 
-    z_t = t * z1 + (1. - t)* z0
-    
+    # Sample standard Gaussian noise
+    z = torch.randn_like(z_t, device=device)
 
-    z = torch.randn_like(z_t, device=device) # Wiener noise with the same shape of x_t
+    # Add the stochastic part of the Brownian bridge
+    z_t = z_t + args.sigma * torch.sqrt(s * (1 - s)) * z
 
-    z_t = z_t + args.sigma * torch.sqrt(t*(1-t)) * z # brownian bridge
-
-
+    # Estimate the score depending on direction
     match direction:
-
         case "forward":
-
-            # z1 - z_t / (1-t)
-            target = z1 - z0 #TODO please be careful t between 0,1 becasue we can have T_min & T_max for the marginals
-            target = target - args.sigma * torch.sqrt(t/(1.-t)) * z
-
+            target = (z1 - z0) - args.sigma * torch.sqrt(s / (1 - s)) * z
         case "backward":
+            target = -(z1 - z0) - args.sigma * torch.sqrt((1 - s) / s) * z
+        case _:
+            raise ValueError("Direction must be 'forward' or 'backward'.")
 
-
-            # z0 - z_t / t 
-            target = - (z1 - z0) #TODO verif if its x_final - x_start or the other way
-            target = target - args.sigma * torch.sqrt((1.-t)/t) * z
-
-
-    return z_t, t, target #return : z_t : brownian bridge at time t, t uniform [0,1], target : score estimation
-
+    return z_t, t, target
 
 
 
 @torch.no_grad()
-def sample_sde(zstart: torch.Tensor, net_dict, direction_tosample: str, N: int = 1000, sig: float = 1.0, device: str = "cuda"): #TODO put T_min and T_max 
+def sample_sde(zstart: torch.Tensor, t_pairs, net_dict, direction_tosample: str, N: int = 1000, sig: float = 1.0, device: str = "cuda"):
     assert direction_tosample in ['forward', 'backward']
 
-
-    dt = 1. / N
-    ts = np.arange(N) / N
+    t_min, t_max = t_pairs
+    ts = np.linspace(t_min, t_max, N)
     if direction_tosample == "backward":
-        ts = 1 - ts
+        ts = ts[::-1]
 
+    dt = abs(t_max - t_min) / N
 
     z = zstart.detach().clone()
     score = net_dict[direction_tosample].eval()
     batchsize = z.size(0)
     traj = [z.detach().clone()]
 
-    
-
     for i in range(N):
-        t = torch.full((batchsize, 1), ts[i], device=device)
-        pred = score(z, t) 
-        z = z.detach().clone() + pred * dt
-        z = z + sig * torch.randn_like(z) * np.sqrt(dt)
+        t = torch.full((batchsize, 1), float(ts[i]), device=device)
+        pred = score(z, t)
+        z = z + pred * dt + sig * torch.randn_like(z) * np.sqrt(dt)
         traj.append(z.detach().clone())
 
-    
-
     return traj
-
-
-

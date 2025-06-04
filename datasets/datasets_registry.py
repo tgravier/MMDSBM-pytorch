@@ -1,20 +1,105 @@
-# datasets/dataset_registry.py
+import numpy as np
+import torch
+from torch.utils.data import Dataset
+from sklearn.datasets import make_circles, make_moons
+from typing import Optional, Union, List
 
-# Some function to check if the dataset is valid
+# ============================
+# === Dataset Registry Core ===
+# ============================
 
-ARTIFICIAL_DATASETS = ["gaussian", "spiral", "moon"]
+ARTIFICIAL_DATASETS = ["gaussian", "spiral", "moon", "circle"]
 REAL_DATASETS = ["mnist", "cifar10"]
 
-def is_valid_distribution(name: str, type_: str) -> bool:
-    if type_ == "artificial":
-        return name in ARTIFICIAL_DATASETS
-    elif type_ == "real":
-        return name in REAL_DATASETS
-    return False
+class DatasetConfig:
+    def __init__(self, name: str, time: float, input_dim: Optional[int] = None, **params):
+        if not self.is_valid_name(name):
+            raise ValueError(f"Dataset '{name}' is not recognized.")
+        if not isinstance(time, (float, int)):
+            raise TypeError(f"'time' must be a number (float or int), got {type(time)}")
 
-def list_distributions(type_: str) -> list:
-    if type_ == "artificial":
-        return ARTIFICIAL_DATASETS
-    elif type_ == "real":
-        return REAL_DATASETS
-    return []
+        self.name = name
+        self.type = self.get_type(name)
+        self.input_dim = input_dim
+        self.time = float(time)
+        self.params = params
+
+    @staticmethod
+    def is_valid_name(name: str) -> bool:
+        return name in ARTIFICIAL_DATASETS or name in REAL_DATASETS
+
+    @staticmethod
+    def get_type(name: str) -> str:
+        if name in ARTIFICIAL_DATASETS:
+            return "artificial"
+        elif name in REAL_DATASETS:
+            return "real"
+        else:
+            raise ValueError(f"Unknown dataset type for '{name}'")
+
+    def get_time(self) -> float:
+        return self.time
+
+    def to_dict(self) -> dict:
+        return {
+            "name": self.name,
+            "type": self.type,
+            "input_dim": self.input_dim,
+            "time": self.time,
+            "params": self.params,
+        }
+
+    def __repr__(self) -> str:
+        return (f"DatasetConfig(name={self.name}, type={self.type}, "
+                f"input_dim={self.input_dim}, time={self.time}, "
+                f"params={self.params})")
+
+# ============================
+# === Dataset Variants ===
+# ============================
+
+class GaussianConfig(DatasetConfig):
+    def __init__(self, time, mean=0.0, std=1.0, n_samples=1000, dim=2):
+        mean_vec = self._ensure_vector(mean, dim)
+        std_vec = self._ensure_vector(std, dim)
+        super().__init__("gaussian", time, input_dim=dim,
+                         mean=mean_vec, std=std_vec, n_samples=n_samples)
+
+    @staticmethod
+    def _ensure_vector(val, dim):
+        if np.isscalar(val):
+            return [val] * dim
+        elif isinstance(val, (list, tuple, np.ndarray)):
+            val = list(val)
+            if len(val) != dim:
+                raise ValueError(f"Expected {dim}-dimensional vector, got {len(val)}")
+            return val
+        else:
+            raise TypeError("mean and std must be scalars or sequences")
+
+class CircleConfig(DatasetConfig):
+    def __init__(self, time, n_samples=1000, noise=0.05, factor=0.5):
+        self._validate_factor(factor)
+        super().__init__(
+            "circle", time, input_dim=2,
+            n_samples=n_samples, noise=noise, factor=factor
+        )
+
+    @staticmethod
+    def _validate_factor(factor):
+        if not (0.0 < factor < 1.0):
+            raise ValueError(f"'factor' must be between 0 and 1 (exclusive), got {factor}")
+
+class MoonConfig(DatasetConfig):
+    def __init__(self, time, n_samples=1000, noise=0.1):
+        self._validate_noise(noise)
+        super().__init__(
+            "moon", time, input_dim=2,
+            n_samples=n_samples, noise=noise
+        )
+
+    @staticmethod
+    def _validate_noise(noise):
+        if noise < 0:
+            raise ValueError(f"'noise' must be >= 0, got {noise}")
+
