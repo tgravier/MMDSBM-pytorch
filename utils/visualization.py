@@ -51,7 +51,6 @@ def draw_plot(
     z1: torch.Tensor,
     t_pairs,
     direction: str,
-    num_bridges:int,
     outer_iter_idx: int,
     num_samples: int = 1000,
     num_steps: int = 1000,
@@ -124,7 +123,7 @@ def draw_plot(
     plt.grid(True)
     plt.tight_layout()
 
-    save_path = os.path.join(folder_fig, f"iter_{outer_iter_idx}_{direction}_bridges_{num_bridges}.png")
+    save_path = os.path.join(folder_fig, f"iter_{outer_iter_idx}_{direction}.png")
     plt.savefig(save_path, dpi=300)
     plt.close()
 
@@ -379,7 +378,13 @@ def make_trajectory(
     sigma: float = 1.0,
     one_bridge: bool = False
 ):
-    # === Prepare output folder
+    import os
+    import torch
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from matplotlib import cm
+    from matplotlib.animation import FFMpegWriter
+
     experiment_name_folder = os.path.join(args.experiment_dir, args.experiment_name)
     folder_traj = os.path.join(
         experiment_name_folder,
@@ -401,7 +406,6 @@ def make_trajectory(
     z0_sampled = z0[idx]
 
     t_pairs = [dataset_train[0].get_time(), dataset_train[-1].get_time()]
-
     if not one_bridge:
         num_steps = num_steps * (len(dataset_train) - 1)
 
@@ -427,13 +431,15 @@ def make_trajectory(
         data = ds.get_all().cpu().numpy()
         distrib_data.append((ds.get_time(), data, cmap(i)))
 
-    # === Compute plot bounds
     all_points = np.concatenate([d for _, d, _ in distrib_data], axis=0)
     x_min, x_max = all_points[:, 0].min() - 0.5, all_points[:, 0].max() + 0.5
     y_min, y_max = all_points[:, 1].min() - 0.5, all_points[:, 1].max() + 0.5
 
-    # === Create 2D grid for score field evaluation
-    resolution = 100
+    # === Grid for score
+    resolution = 50
+    stride = 3           # show 1 arrow every 3 grid points
+    arrow_scale = 0.5    # visual scale of arrows
+
     x_grid = torch.linspace(x_min, x_max, resolution)
     y_grid = torch.linspace(y_min, y_max, resolution)
     X, Y = torch.meshgrid(x_grid, y_grid, indexing='ij')
@@ -441,10 +447,8 @@ def make_trajectory(
 
     score_model = net_dict[direction_tosample].eval()
 
-    # === Initialize figure
     fig, ax = plt.subplots(figsize=(6, 6))
 
-    # Background image for score norm
     norm_image = ax.imshow(
         np.zeros((resolution, resolution)),
         extent=[x_min, x_max, y_min, y_max],
@@ -453,36 +457,33 @@ def make_trajectory(
         alpha=0.5
     )
 
-    # Initialize quiver plot for score direction
+    # === Initial quiver (empty)
     quiver = ax.quiver(
-        X.cpu().numpy(), Y.cpu().numpy(),
-        np.zeros_like(X.cpu().numpy()),
-        np.zeros_like(Y.cpu().numpy()),
-        color='blue',
-        scale=50  # Adjust scale for arrow size
+        X[::stride, ::stride].cpu().numpy(), Y[::stride, ::stride].cpu().numpy(),
+        np.zeros_like(X[::stride, ::stride].cpu().numpy()),
+        np.zeros_like(Y[::stride, ::stride].cpu().numpy()),
+        color='cyan',
+        angles='xy',
+        scale_units='xy',
+        scale=1,
+        width=0.003
     )
 
-    # Plot dataset distributions
-    scatters = []
     for ti, data, color in distrib_data:
-        s = ax.scatter(data[:, 0], data[:, 1], s=30, alpha=0.3, color=color, label=f"t={ti:.2f}")
-        scatters.append(s)
+        ax.scatter(data[:, 0], data[:, 1], s=30, alpha=0.3, color=color, label=f"t={ti:.2f}")
 
     gen_scat = ax.scatter([], [], s=5, color='green', label="Generated")
-    scatters.append(gen_scat)
 
     ax.set_xlim(x_min, x_max)
     ax.set_ylim(y_min, y_max)
     ax.legend(loc='upper right', fontsize=6)
     ax.grid(True)
 
-    # === Determine FPS from time steps
     if len(time) < 2:
         raise ValueError("Not enough time steps to compute dt.")
     dt_i = abs(time[2] - time[1])
     video_fps = 1.0 / dt_i
 
-    # === Set up video writer
     save_path = os.path.join(
         folder_traj,
         f"traj_iter_{outer_iter_idx}_tpairs_{t_pairs}_direction_{direction_tosample}.mp4"
@@ -495,30 +496,31 @@ def make_trajectory(
             t_val = torch.full((grid_points.size(0), 1), time[i], device=device)
             with torch.no_grad():
                 score_vec = score_model(grid_points, t_val)  # [N, 2]
-                score_norm = score_vec.norm(dim=1).cpu().numpy()
-                score_grid = score_norm.reshape((resolution, resolution))
 
-                # Reshape vector field for quiver
-                U = score_vec[:, 0].cpu().numpy().reshape((resolution, resolution))
-                V = score_vec[:, 1].cpu().numpy().reshape((resolution, resolution))
-
-            # Update norm background
+            score_norm = score_vec.norm(dim=1).cpu().numpy()
+            score_grid = score_norm.reshape((resolution, resolution))
             norm_image.set_data(score_grid)
             norm_image.set_clim(0, score_grid.max())
 
-            # Update quiver arrows
-            quiver.set_UVC(U, V)
+            # === Compute normalized vector field
+            U = score_vec[:, 0].cpu().numpy().reshape((resolution, resolution))
+            V = score_vec[:, 1].cpu().numpy().reshape((resolution, resolution))
+            mag = np.sqrt(U**2 + V**2) + 1e-8
+            U_scaled = (U / mag) * arrow_scale
+            V_scaled = (V / mag) * arrow_scale
 
-            # Update sample points
+            # === Update arrows (sparse view)
+            quiver.set_UVC(
+                U_scaled[::stride, ::stride],
+                V_scaled[::stride, ::stride]
+            )
+
             z = generated[i]
             gen_scat.set_offsets(z[:, :2])
             ax.set_title(f"Bridge Evolution — Epoch {outer_iter_idx} — t = {time[i]:.3f}")
-
             writer.grab_frame()
 
     plt.close(fig)
-
-
 
 def plot_moment(
     args,

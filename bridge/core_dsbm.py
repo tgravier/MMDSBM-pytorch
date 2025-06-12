@@ -63,16 +63,15 @@ class IMF_DSBM():
 
 
             
-    def train_one_direction(self, x_pairs, t_pairs, num_bridges, direction: str, outer_iter_idx: int):
+    def train_one_direction(self, x_pairs, t_pairs: Tensor, direction: str, outer_iter_idx: int):
 
         loss_curve = []
-        self.num_bridges = num_bridges
         # 0. generate initial and final points
         dl = iter(self.accelerator.prepare(DataLoader(
             TensorDataset(
                 *self.generate_dataloaders(
                         args = self.args,
-                        x_pairs= x_pairs,
+                        x_pairs= x_pairs, #TODO give here x_pairs and time but x_pairs can be from different time_pairs
                         t_pairs = t_pairs,
                         direction_to_train= direction,
                         outer_iter_idx= outer_iter_idx,
@@ -83,7 +82,7 @@ class IMF_DSBM():
                 pin_memory= False,
                 drop_last = True)
                 ))
-
+        # at this step we have dataloader with initial point generate and real end point
         pbar = tqdm(range(self.args.nb_inner_opt_steps), desc=f"{direction} | Outer {outer_iter_idx}")
 
         for inner_opt_step in pbar:
@@ -140,7 +139,6 @@ class IMF_DSBM():
             draw_plot(
                 model=self,
                 args=self.args,
-                num_bridges=num_bridges,
                 z0=x_pairs[:,0], 
                 z1=x_pairs[:,1],
                 t_pairs = t_pairs,
@@ -154,7 +152,7 @@ class IMF_DSBM():
         return loss_curve, {"forward":self.net_fwd , "backward":self.net_bwd}
     
     @torch.inference_mode()       
-    def generate_dataloaders(self, args, x_pairs, t_pairs, direction_to_train: str, outer_iter_idx: int, first_coupling = None):
+    def generate_dataloaders(self, args, x_pairs, t_pairs: Tensor, direction_to_train: str, outer_iter_idx: int, first_coupling = None):
        
     
         if outer_iter_idx == 0 and direction_to_train == "forward" :
@@ -162,7 +160,7 @@ class IMF_DSBM():
             if first_coupling == 'ref':
 
                 zstart = x_pairs[:, 0]
-                zend = zstart + torch.randn_like(zstart)* args.sigma
+                zend = zstart + torch.randn_like(zstart)* args.sigma #TODO for nbridges ok i think
 
 
 
@@ -170,8 +168,10 @@ class IMF_DSBM():
             elif first_coupling == 'ind' :
 
                 zstart = x_pairs[:, 0]
-                zend = x_pairs[:, 1].clone()
-                zend = zend[torch.randperm(len(zend))]
+                zend = x_pairs[:, 1].clone()  #TODO  !! not ok for n bridges we need to shuffle between zo , zend with the same time_pairs
+                permutation = torch.randperm(len(zend))
+                zend = zend[permutation]
+                t_pairs = t_pairs[permutation]
             
             else:
                 raise NotImplementedError
@@ -198,7 +198,7 @@ class IMF_DSBM():
                 case _:
                     raise ValueError(f"Unknown direction: {direction_to_train}")
                 
-            zend = sampler.sample_sde(
+            zend = sampler.sample_sde( #TODO see sample SDE
 
                 zstart = zstart,
                 t_pairs= t_pairs,

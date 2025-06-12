@@ -75,7 +75,7 @@ class ScoreNetwork(nn.Module):
     ) -> None:
         super().__init__()
 
-        self.time_encoder = TimeEncoding(time_dim=time_dim, max_time=max_time)
+        self.time_encoder = TimeEncoding(time_dim=time_dim, max_time=max_time) #TODO for the scale encode time for each layers and project on it.
 
         self.net = MLP(
             input_dim=input_dim + time_dim,

@@ -78,17 +78,11 @@ class GaussianConfig(DatasetConfig):
             raise TypeError("mean and std must be scalars or sequences")
 
 class CircleConfig(DatasetConfig):
-    def __init__(self, time, n_samples=1000, noise=0.05, factor=0.5):
-        self._validate_factor(factor)
+    def __init__(self, time, n_samples=1000, center=(0.0, 0.0), radius=1.0, thickness=0.05):
         super().__init__(
             "circle", time, input_dim=2,
-            n_samples=n_samples, noise=noise, factor=factor
+            n_samples=n_samples, center=center, radius=radius, thickness=thickness
         )
-
-    @staticmethod
-    def _validate_factor(factor):
-        if not (0.0 < factor < 1.0):
-            raise ValueError(f"'factor' must be between 0 and 1 (exclusive), got {factor}")
 
 class MoonConfig(DatasetConfig):
     def __init__(self, time, n_samples=1000, noise=0.1):

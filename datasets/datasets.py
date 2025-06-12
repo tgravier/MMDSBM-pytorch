@@ -62,9 +62,17 @@ def load_dataset(config: DatasetConfig) -> TimedDataset:
                             time)
 
     elif name == "circle":
-        X, y = make_circles(n_samples=n,
-                            noise=params.get("noise", 0.05),
-                            factor=params.get("factor", 0.5))
+        center = np.array(params.get("center", [0.0, 0.0]))
+        radius = params.get("radius", 1.0)
+        thickness = params.get("thickness", 0.05)
+        n = params.get("n_samples", 1000)
+        angles = np.random.uniform(0, 2 * np.pi, n)
+        radii = np.random.normal(radius, thickness, n)
+        X = np.stack([
+            center[0] + radii * np.cos(angles),
+            center[1] + radii * np.sin(angles)
+        ], axis=1)
+        y = np.zeros(n)
         return TimedDataset(torch.tensor(X, dtype=torch.float32),
                             torch.tensor(y, dtype=torch.long),
                             time)

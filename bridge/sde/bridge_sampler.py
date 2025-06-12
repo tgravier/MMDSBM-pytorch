@@ -33,7 +33,7 @@ def get_brownian_bridge(
 
     device = args.accelerator.device
     z0, z1 = x_pairs[:, 0], x_pairs[:, 1]         # values at t1 and t2
-    t1, t2 = t_pairs     # time bounds reshaped to [batch, 1]
+    t1, t2 = t_pairs[:, 0], t_pairs[:, 1]     # time bounds reshaped to [batch, 1]
 
     # Sample t uniformly in (t1 + eps, t2 - eps) to avoid sqrt(0) issues
     t = torch.rand((z0.shape[0], 1), device=device)
@@ -65,26 +65,25 @@ def get_brownian_bridge(
 
 
 @torch.no_grad()
-def sample_sde(zstart: torch.Tensor, t_pairs, net_dict, direction_tosample: str, N: int = 1000, sig: float = 1.0, device: str = "cuda"):
+def sample_sde(zstart: torch.Tensor, t_pairs: Tensor, net_dict, direction_tosample: str, N: int = 1000, sig: float = 1.0, device: str = "cuda"):
     assert direction_tosample in ['forward', 'backward']
 
-    t_min, t_max = t_pairs
+    t_min = t_pairs[:0]
+    t_max = t_pairs[:1]
     ts = np.linspace(t_min, t_max, N)
     if direction_tosample == "backward":
         ts = ts[::-1]
 
-    dt = abs(t_max - t_min) / N
+    dt = np.abs(t_max - t_min) / N
 
     z = zstart.detach().clone()
     score = net_dict[direction_tosample].eval()
-    batchsize = z.size(0)
+    batchsize = z.size(0) #TODO verif the dim if 0 is still the batchsize
     traj = [z.detach().clone()]
-    t_list = [ts[0]]
     for i in range(N):
         t = torch.full((batchsize, 1), float(ts[i]), device=device)
-        t_list.append(ts[i])
-        pred = score(z, t)
+        pred = score(z, t) # TODO see if the network can take different t
         z = z + pred * dt + sig * torch.randn_like(z) * np.sqrt(dt)
         traj.append(z.detach().clone())
 
-    return traj, t_list
+    return traj, ts
