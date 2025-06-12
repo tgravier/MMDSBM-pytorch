@@ -8,10 +8,20 @@ import os
 from torch import Tensor
 from scipy.stats import gaussian_kde
 
+from matplotlib import animation, cm
+
+
 from bridge.sde.bridge_sampler import sample_sde
 from utils.metric import get_classic_metrics
 
 from typing import List
+
+
+from matplotlib.animation import FFMpegWriter  
+
+
+
+from matplotlib import cm
 
 
 
@@ -71,7 +81,7 @@ def draw_plot(
             N=num_steps,
             sig=sigma,
             device=args.accelerator.device
-        )[-1]
+        )[0][-1]
     elif direction == 'backward':
         generated_samples = sample_sde(
             zstart=z1_sampled,
@@ -81,7 +91,7 @@ def draw_plot(
             N=num_steps,
             sig=sigma,
             device=args.accelerator.device
-        )[-1]
+        )[0][-1]
 
     # convert to numpy
     z0_np = z0_sampled.cpu().numpy()
@@ -114,10 +124,399 @@ def draw_plot(
     plt.grid(True)
     plt.tight_layout()
 
-    save_path = os.path.join(folder_fig, f"{direction}_bridges_{num_bridges}_iter_{outer_iter_idx}.png")
+    save_path = os.path.join(folder_fig, f"iter_{outer_iter_idx}_{direction}_bridges_{num_bridges}.png")
     plt.savefig(save_path, dpi=300)
     plt.close()
 
+
+
+
+@torch.no_grad()
+def make_trajectory_gif(
+    args,
+    direction_tosample: str,
+    net_dict: dict,
+    dataset_train: list,
+    outer_iter_idx: int,
+    num_samples: int = 100,
+    num_steps: int = 200,
+    sigma: float = 1.0,
+    fps: int = 20,
+    one_bridge: bool = False
+):  
+    experiment_name_folder = os.path.join(args.experiment_dir, args.experiment_name)
+
+    folder_traj = os.path.join(
+        experiment_name_folder,
+        "traj" if one_bridge else "traj_bridges"
+    )
+    os.makedirs(folder_traj, exist_ok=True)
+
+    device = next(net_dict[direction_tosample].parameters()).device
+
+    # === Start points ===
+    if direction_tosample == "forward":
+        z0 = dataset_train[0].get_all().to(device)
+    elif direction_tosample == "backward":
+        z0 = dataset_train[-1].get_all().to(device)
+    else:
+        raise ValueError("Invalid direction")
+
+    idx = torch.randint(0, z0.shape[0], (num_samples,))
+    z0_sampled = z0[idx]
+
+    t_pairs = [dataset_train[0].get_time(), dataset_train[-1].get_time()]
+
+    if not one_bridge:
+        num_steps = num_steps * (len(dataset_train) - 1)
+
+    # === Simulate trajectory
+    generated, time = sample_sde(
+        zstart=z0_sampled,
+        net_dict=net_dict,
+        t_pairs=t_pairs,
+        direction_tosample=direction_tosample,
+        N=num_steps,
+        sig=sigma,
+        device=device
+    )
+
+    generated = [g.cpu().numpy() for g in generated]  # list of [B, D]
+    time = [float(t) for t in time]  # ensure it's a list of floats
+
+    # === Load fixed distributions
+    cmap = cm.get_cmap('tab10', len(dataset_train))
+    distrib_data = []
+    for i, ds in enumerate(dataset_train):
+        data = ds.get_all().cpu().numpy()
+        distrib_data.append((ds.get_time(), data, cmap(i)))
+
+    # === Plot bounds
+    all_points = np.concatenate([d for _, d, _ in distrib_data], axis=0)
+    x_min, x_max = all_points[:, 0].min() - 0.5, all_points[:, 0].max() + 0.5
+    y_min, y_max = all_points[:, 1].min() - 0.5, all_points[:, 1].max() + 0.5
+
+    # === Init plot
+    fig, ax = plt.subplots(figsize=(6, 6))
+    scatters = []
+
+    # Plot reference distributions
+    for ti, data, color in distrib_data:
+        s = ax.scatter(data[:, 0], data[:, 1], s=30, alpha=0.3, color=color, label=f"t={ti:.2f}")
+        scatters.append(s)
+
+    # Init for moving particles
+    gen_scat = ax.scatter([], [], s=5, color='green', label="Generated")
+    scatters.append(gen_scat)
+
+    ax.set_xlim(x_min, x_max)
+    ax.set_ylim(y_min, y_max)
+    ax.legend(loc='upper right', fontsize=6)
+    ax.grid(True)
+
+    # === Animation update function (affiche t réel)
+    def update(frame):
+        z = generated[frame]
+        gen_scat.set_offsets(z[:, :2])
+        ax.set_title(f"Bridge Evolution — Epoch {outer_iter_idx} — t = {time[frame]:.3f}")
+        return scatters
+
+    # === Create animation
+    anim = animation.FuncAnimation(
+        fig,
+        update,
+        frames=len(generated),
+        interval=1000 // fps,
+        blit=True
+    )
+
+    save_path = os.path.join(
+        folder_traj,
+        f"traj_iter_{outer_iter_idx}_tpairs_{t_pairs}_direction_{direction_tosample}.gif"
+    )
+    anim.save(save_path, writer='pillow', fps=fps)
+
+
+
+
+@torch.no_grad()
+def make_trajectory_old(
+    args,
+    direction_tosample: str,
+    net_dict: dict,
+    dataset_train: list,
+    outer_iter_idx: int,
+    num_samples: int = 100,
+    num_steps: int = 200,
+    sigma: float = 1.0,
+    one_bridge: bool = False
+):
+    experiment_name_folder = os.path.join(args.experiment_dir, args.experiment_name)
+    folder_traj = os.path.join(
+        experiment_name_folder,
+        "traj" if one_bridge else "traj_bridges"
+    )
+    os.makedirs(folder_traj, exist_ok=True)
+
+    device = next(net_dict[direction_tosample].parameters()).device
+
+    # === Start points
+    if direction_tosample == "forward":
+        z0 = dataset_train[0].get_all().to(device)
+    elif direction_tosample == "backward":
+        z0 = dataset_train[-1].get_all().to(device)
+    else:
+        raise ValueError("Invalid direction")
+
+    idx = torch.randint(0, z0.shape[0], (num_samples,))
+    z0_sampled = z0[idx]
+
+    t_pairs = [dataset_train[0].get_time(), dataset_train[-1].get_time()]
+
+    if not one_bridge:
+        num_steps = num_steps * (len(dataset_train) - 1)
+
+    # === Simulate trajectory
+    from bridge.sde.bridge_sampler import sample_sde
+    generated, time = sample_sde(
+        zstart=z0_sampled,
+        net_dict=net_dict,
+        t_pairs=t_pairs,
+        direction_tosample=direction_tosample,
+        N=num_steps,
+        sig=sigma,
+        device=device
+    )
+
+    generated = [g.cpu().numpy() for g in generated]
+    time = [float(t) for t in time]
+
+    # === Load fixed distributions
+    cmap = cm.get_cmap('tab10', len(dataset_train))
+    distrib_data = []
+    for i, ds in enumerate(dataset_train):
+        data = ds.get_all().cpu().numpy()
+        distrib_data.append((ds.get_time(), data, cmap(i)))
+
+    # === Plot bounds
+    all_points = np.concatenate([d for _, d, _ in distrib_data], axis=0)
+    x_min, x_max = all_points[:, 0].min() - 0.5, all_points[:, 0].max() + 0.5
+    y_min, y_max = all_points[:, 1].min() - 0.5, all_points[:, 1].max() + 0.5
+
+    # === Create grid for score norm visualization
+    resolution = 100  # e.g. 100x100 grid
+    x_grid = torch.linspace(x_min, x_max, resolution)
+    y_grid = torch.linspace(y_min, y_max, resolution)
+    X, Y = torch.meshgrid(x_grid, y_grid, indexing='ij')
+    grid_points = torch.stack([X.reshape(-1), Y.reshape(-1)], dim=1).to(device)
+
+    score_model = net_dict[direction_tosample].eval()
+
+    fig, ax = plt.subplots(figsize=(6, 6))
+
+    # Display norm of score
+    norm_image = ax.imshow(
+        np.zeros((resolution, resolution)),
+        extent=[x_min, x_max, y_min, y_max],
+        origin='lower',
+        cmap='inferno',
+        alpha=0.5
+    )
+
+    # Plot distributions
+    scatters = []
+    for ti, data, color in distrib_data:
+        s = ax.scatter(data[:, 0], data[:, 1], s=30, alpha=0.3, color=color, label=f"t={ti:.2f}")
+        scatters.append(s)
+
+    gen_scat = ax.scatter([], [], s=5, color='green', label="Generated")
+    scatters.append(gen_scat)
+
+    ax.set_xlim(x_min, x_max)
+    ax.set_ylim(y_min, y_max)
+    ax.legend(loc='upper right', fontsize=6)
+    ax.grid(True)
+
+    # === Set video FPS based on dt_i
+    if len(time) < 2:
+        raise ValueError("Not enough time steps to compute dt.")
+    dt_i = abs(time[2] - time[1])
+    video_fps = 1.0 / dt_i
+
+    save_path = os.path.join(
+        folder_traj,
+        f"traj_iter_{outer_iter_idx}_tpairs_{t_pairs}_direction_{direction_tosample}.mp4"
+    )
+    writer = FFMpegWriter(fps=video_fps)
+
+    with writer.saving(fig, save_path, dpi=200):
+        for i in range(len(generated)):
+            t_val = torch.full((grid_points.size(0), 1), time[i], device=device)
+            with torch.no_grad():
+                score_vec = score_model(grid_points, t_val)  # [N, 2]
+                score_norm = score_vec.norm(dim=1).cpu().numpy()
+                score_grid = score_norm.reshape((resolution, resolution))
+
+            norm_image.set_data(score_grid)
+            norm_image.set_clim(0, score_grid.max())
+
+            z = generated[i]
+            gen_scat.set_offsets(z[:, :2])
+            ax.set_title(f"Bridge Evolution — Epoch {outer_iter_idx} — t = {time[i]:.3f}")
+            writer.grab_frame()
+
+    plt.close(fig)
+
+@torch.no_grad()
+def make_trajectory(
+    args,
+    direction_tosample: str,
+    net_dict: dict,
+    dataset_train: list,
+    outer_iter_idx: int,
+    num_samples: int = 100,
+    num_steps: int = 200,
+    sigma: float = 1.0,
+    one_bridge: bool = False
+):
+    # === Prepare output folder
+    experiment_name_folder = os.path.join(args.experiment_dir, args.experiment_name)
+    folder_traj = os.path.join(
+        experiment_name_folder,
+        "traj" if one_bridge else "traj_bridges"
+    )
+    os.makedirs(folder_traj, exist_ok=True)
+
+    device = next(net_dict[direction_tosample].parameters()).device
+
+    # === Initial sample points
+    if direction_tosample == "forward":
+        z0 = dataset_train[0].get_all().to(device)
+    elif direction_tosample == "backward":
+        z0 = dataset_train[-1].get_all().to(device)
+    else:
+        raise ValueError("Invalid direction")
+
+    idx = torch.randint(0, z0.shape[0], (num_samples,))
+    z0_sampled = z0[idx]
+
+    t_pairs = [dataset_train[0].get_time(), dataset_train[-1].get_time()]
+
+    if not one_bridge:
+        num_steps = num_steps * (len(dataset_train) - 1)
+
+    # === Simulate trajectory
+    from bridge.sde.bridge_sampler import sample_sde
+    generated, time = sample_sde(
+        zstart=z0_sampled,
+        net_dict=net_dict,
+        t_pairs=t_pairs,
+        direction_tosample=direction_tosample,
+        N=num_steps,
+        sig=sigma,
+        device=device
+    )
+
+    generated = [g.cpu().numpy() for g in generated]
+    time = [float(t) for t in time]
+
+    # === Load dataset distributions
+    cmap = cm.get_cmap('tab10', len(dataset_train))
+    distrib_data = []
+    for i, ds in enumerate(dataset_train):
+        data = ds.get_all().cpu().numpy()
+        distrib_data.append((ds.get_time(), data, cmap(i)))
+
+    # === Compute plot bounds
+    all_points = np.concatenate([d for _, d, _ in distrib_data], axis=0)
+    x_min, x_max = all_points[:, 0].min() - 0.5, all_points[:, 0].max() + 0.5
+    y_min, y_max = all_points[:, 1].min() - 0.5, all_points[:, 1].max() + 0.5
+
+    # === Create 2D grid for score field evaluation
+    resolution = 100
+    x_grid = torch.linspace(x_min, x_max, resolution)
+    y_grid = torch.linspace(y_min, y_max, resolution)
+    X, Y = torch.meshgrid(x_grid, y_grid, indexing='ij')
+    grid_points = torch.stack([X.reshape(-1), Y.reshape(-1)], dim=1).to(device)
+
+    score_model = net_dict[direction_tosample].eval()
+
+    # === Initialize figure
+    fig, ax = plt.subplots(figsize=(6, 6))
+
+    # Background image for score norm
+    norm_image = ax.imshow(
+        np.zeros((resolution, resolution)),
+        extent=[x_min, x_max, y_min, y_max],
+        origin='lower',
+        cmap='inferno',
+        alpha=0.5
+    )
+
+    # Initialize quiver plot for score direction
+    quiver = ax.quiver(
+        X.cpu().numpy(), Y.cpu().numpy(),
+        np.zeros_like(X.cpu().numpy()),
+        np.zeros_like(Y.cpu().numpy()),
+        color='blue',
+        scale=50  # Adjust scale for arrow size
+    )
+
+    # Plot dataset distributions
+    scatters = []
+    for ti, data, color in distrib_data:
+        s = ax.scatter(data[:, 0], data[:, 1], s=30, alpha=0.3, color=color, label=f"t={ti:.2f}")
+        scatters.append(s)
+
+    gen_scat = ax.scatter([], [], s=5, color='green', label="Generated")
+    scatters.append(gen_scat)
+
+    ax.set_xlim(x_min, x_max)
+    ax.set_ylim(y_min, y_max)
+    ax.legend(loc='upper right', fontsize=6)
+    ax.grid(True)
+
+    # === Determine FPS from time steps
+    if len(time) < 2:
+        raise ValueError("Not enough time steps to compute dt.")
+    dt_i = abs(time[2] - time[1])
+    video_fps = 1.0 / dt_i
+
+    # === Set up video writer
+    save_path = os.path.join(
+        folder_traj,
+        f"traj_iter_{outer_iter_idx}_tpairs_{t_pairs}_direction_{direction_tosample}.mp4"
+    )
+    writer = FFMpegWriter(fps=video_fps)
+
+    # === Animate trajectory and vector field
+    with writer.saving(fig, save_path, dpi=200):
+        for i in range(len(generated)):
+            t_val = torch.full((grid_points.size(0), 1), time[i], device=device)
+            with torch.no_grad():
+                score_vec = score_model(grid_points, t_val)  # [N, 2]
+                score_norm = score_vec.norm(dim=1).cpu().numpy()
+                score_grid = score_norm.reshape((resolution, resolution))
+
+                # Reshape vector field for quiver
+                U = score_vec[:, 0].cpu().numpy().reshape((resolution, resolution))
+                V = score_vec[:, 1].cpu().numpy().reshape((resolution, resolution))
+
+            # Update norm background
+            norm_image.set_data(score_grid)
+            norm_image.set_clim(0, score_grid.max())
+
+            # Update quiver arrows
+            quiver.set_UVC(U, V)
+
+            # Update sample points
+            z = generated[i]
+            gen_scat.set_offsets(z[:, :2])
+            ax.set_title(f"Bridge Evolution — Epoch {outer_iter_idx} — t = {time[i]:.3f}")
+
+            writer.grab_frame()
+
+    plt.close(fig)
 
 
 
@@ -173,3 +572,7 @@ def plot_moment(
         plt.tight_layout()
         plt.savefig(f"{fig_folder}/std_{name}_{direction}.png", dpi=300)
         plt.close()
+
+
+
+

@@ -8,7 +8,9 @@ from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 import torch.nn as nn
 import matplotlib.pyplot as plt
+import random
 
+from utils.visualization import make_trajectory
 from bridge.core_dsbm import IMF_DSBM
 from datasets.datasets_registry import DatasetConfig
 from datasets.datasets import load_dataset, TimedDataset
@@ -118,7 +120,7 @@ class N_Bridges(IMF_DSBM):
                     print(f"Training FORWARD bridge {num_bridges} from t={dataset_init.get_time()} to t={dataset_target.get_time()}")
                     x_pairs, t_pairs = self.generate_dataset_pairs(dataset_init, dataset_target)
 
-                    self.train_one_direction(
+                    loss_curve , net_dict = self.train_one_direction(
                         direction="forward",
                         num_bridges=num_bridges,
                         x_pairs=x_pairs,
@@ -130,26 +132,29 @@ class N_Bridges(IMF_DSBM):
                 for num_bridges, (dataset_init, dataset_target) in enumerate(forward_pairs):  # inverse pairs
                     print(f"Training BACKWARD bridge {num_bridges} from t={dataset_init.get_time()} to t={dataset_target.get_time()}")
                     x_pairs, t_pairs = self.generate_dataset_pairs(dataset_init, dataset_target)
-                    self.train_one_direction(
+                    loss_curve , net_dict = self.train_one_direction(
                         direction="backward",
                         num_bridges=num_bridges,
                         x_pairs=x_pairs,
                         t_pairs=t_pairs,
                         outer_iter_idx=outer_iter_idx
                     )
+                
 
         elif method == 'bouncing':
             for outer_iter_idx in range(self.args.nb_outer_iterations):
 
                 # Get forward pairs: (D1, D2), (D2, D3), ...
                 forward_pairs = list(zip(self.datasets_train[:-1], self.datasets_train[1:]))
-
+               
                 for num_bridges, (dataset_init, dataset_target) in enumerate(forward_pairs):
+                    
+
+
                     print(f"Training FORWARD bridge {num_bridges} from t={dataset_init.get_time()} to t={dataset_target.get_time()}")
                     x_pairs, t_pairs = self.generate_dataset_pairs(dataset_init, dataset_target)
-
-                    self.train_one_direction(
-                        direction="forward",
+                    loss_curve , net_dict = self.train_one_direction(
+                        direction='forward',
                         num_bridges=num_bridges,
                         x_pairs=x_pairs,
                         t_pairs=t_pairs,
@@ -159,14 +164,145 @@ class N_Bridges(IMF_DSBM):
                     print(f"Training BACKWARD bridge {num_bridges} from t={dataset_init.get_time()} to t={dataset_target.get_time()}")
                     x_pairs, t_pairs = self.generate_dataset_pairs(dataset_init, dataset_target)
 
-                    self.train_one_direction(
-                        direction="backward",
+                    loss_curve , net_dict = self.train_one_direction(
+                        direction='backward',
+                        num_bridges=num_bridges,
+                        x_pairs=x_pairs,
+                        t_pairs=t_pairs,
+                        outer_iter_idx=outer_iter_idx
+                    )
+                for direction in ["forward", "backward"]:
+
+                    make_trajectory(
+                        args=self.args,
+                        direction_tosample=direction,
+                        net_dict=net_dict,
+                        dataset_train=self.datasets_train,
+                        outer_iter_idx=outer_iter_idx,
+                        num_samples=1000,
+                        num_steps=self.args.num_simulation_steps
+                    )
+        elif method == 'stochastic':
+        
+            for outer_iter_idx in range(self.args.nb_outer_iterations):
+
+                # Get forward pairs: (D1, D2), (D2, D3), ...
+                forward_pairs = list(zip(self.datasets_train[:-1], self.datasets_train[1:]))
+                
+                # Get forward pairs random
+                random.shuffle(forward_pairs) 
+
+                for num_bridges, (dataset_init, dataset_target) in enumerate(forward_pairs):
+                    
+
+
+                    print(f"Training FORWARD bridge {num_bridges} from t={dataset_init.get_time()} to t={dataset_target.get_time()}")
+                    x_pairs, t_pairs = self.generate_dataset_pairs(dataset_init, dataset_target)
+                    loss_curve , net_dict = self.train_one_direction(
+                        direction='forward',
                         num_bridges=num_bridges,
                         x_pairs=x_pairs,
                         t_pairs=t_pairs,
                         outer_iter_idx=outer_iter_idx
                     )
 
+
+                    print(f"Training BACKWARD bridge {num_bridges} from t={dataset_init.get_time()} to t={dataset_target.get_time()}")
+                    x_pairs, t_pairs = self.generate_dataset_pairs(dataset_init, dataset_target)
+
+                    loss_curve , net_dict = self.train_one_direction(
+                        direction='backward',
+                        num_bridges=num_bridges,
+                        x_pairs=x_pairs,
+                        t_pairs=t_pairs,
+                        outer_iter_idx=outer_iter_idx
+                    )
+
+                    break
+                for direction in ["forward", "backward"]:
+
+                    make_trajectory(
+                        args=self.args,
+                        direction_tosample=direction,
+                        net_dict=net_dict,
+                        dataset_train=self.datasets_train,
+                        outer_iter_idx=outer_iter_idx,
+                        num_samples=1000,
+                        num_steps=self.args.num_simulation_steps
+                    )
+
+
+        elif method == 'stochastic2':
+        
+            for outer_iter_idx in range(self.args.nb_outer_iterations):
+
+                # Get forward pairs: (D1, D2), (D2, D3), ...
+                forward_pairs = list(zip(self.datasets_train[:-1], self.datasets_train[1:]))
+                
+                # Get forward pairs random
+                random.shuffle(forward_pairs) 
+
+                for num_bridges, (dataset_init, dataset_target) in enumerate(forward_pairs):
+                    
+
+
+                    print(f"Training FORWARD bridge {num_bridges} from t={dataset_init.get_time()} to t={dataset_target.get_time()}")
+                    x_pairs, t_pairs = self.generate_dataset_pairs(dataset_init, dataset_target)
+                    loss_curve , net_dict = self.train_one_direction(
+                        direction='forward',
+                        num_bridges=num_bridges,
+                        x_pairs=x_pairs,
+                        t_pairs=t_pairs,
+                        outer_iter_idx=outer_iter_idx
+                    )
+
+                    make_trajectory(
+                        args=self.args,
+                        direction_tosample='forward',
+                        net_dict=net_dict,
+                        dataset_train=[dataset_init, dataset_target],
+                        outer_iter_idx=outer_iter_idx,
+                        num_samples=1000,
+                        num_steps=self.args.num_simulation_steps,
+                        one_bridge = True
+                    )
+                
+
+                    print(f"Training BACKWARD bridge {num_bridges} from t={dataset_init.get_time()} to t={dataset_target.get_time()}")
+                    x_pairs, t_pairs = self.generate_dataset_pairs(dataset_init, dataset_target)
+
+                    loss_curve , net_dict = self.train_one_direction(
+                        direction='backward',
+                        num_bridges=num_bridges,
+                        x_pairs=x_pairs,
+                        t_pairs=t_pairs,
+                        outer_iter_idx=outer_iter_idx
+                    )
+
+                    make_trajectory(
+                        args=self.args,
+                        direction_tosample='backward',
+                        net_dict=net_dict,
+                        dataset_train=[dataset_init, dataset_target],
+                        outer_iter_idx=outer_iter_idx,
+                        num_samples=1000,
+                        num_steps=self.args.num_simulation_steps,
+                        one_bridge = True
+                    )
+
+                    
+                for direction in ["forward", "backward"]:
+
+                    make_trajectory(
+                        args=self.args,
+                        direction_tosample=direction,
+                        net_dict=net_dict,
+                        dataset_train=self.datasets_train,
+                        outer_iter_idx=outer_iter_idx,
+                        num_samples=1000,
+                        num_steps=self.args.num_simulation_steps
+                    )
+                
 
 
 

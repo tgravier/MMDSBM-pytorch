@@ -8,6 +8,7 @@ dependencies = [
     "accelerate>=1.7.0",
     "ipykernel>=6.29.5",
     "matplotlib>=3.10.3",
+    "pillow>=11.2.1",
     "scikit-learn>=1.6.1",
     "scipy>=1.15.3",
     "torch>=2.7.0",

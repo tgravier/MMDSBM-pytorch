@@ -79,11 +79,12 @@ def sample_sde(zstart: torch.Tensor, t_pairs, net_dict, direction_tosample: str,
     score = net_dict[direction_tosample].eval()
     batchsize = z.size(0)
     traj = [z.detach().clone()]
-
+    t_list = [ts[0]]
     for i in range(N):
         t = torch.full((batchsize, 1), float(ts[i]), device=device)
+        t_list.append(ts[i])
         pred = score(z, t)
         z = z + pred * dt + sig * torch.randn_like(z) * np.sqrt(dt)
         traj.append(z.detach().clone())
 
-    return traj
+    return traj, t_list

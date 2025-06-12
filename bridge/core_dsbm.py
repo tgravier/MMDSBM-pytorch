@@ -66,7 +66,7 @@ class IMF_DSBM():
     def train_one_direction(self, x_pairs, t_pairs, num_bridges, direction: str, outer_iter_idx: int):
 
         loss_curve = []
-
+        self.num_bridges = num_bridges
         # 0. generate initial and final points
         dl = iter(self.accelerator.prepare(DataLoader(
             TensorDataset(
@@ -111,7 +111,9 @@ class IMF_DSBM():
 
             
             # 2. get Brownian bridge
-            x_bridge_t, t, target = sampler.get_brownian_bridge(self.args, z_pairs, t_pairs, direction) 
+            x_bridge_t, t, target = sampler.get_brownian_bridge(self.args, z_pairs, t_pairs, direction)
+
+
             
             # 3. get net prediction
 
@@ -132,6 +134,7 @@ class IMF_DSBM():
 
 
 
+
         if outer_iter_idx % self.args.vis_every == 0:
 
             draw_plot(
@@ -147,14 +150,14 @@ class IMF_DSBM():
                 num_steps=self.args.num_simulation_steps,
                 sigma=self.args.sigma
             )
-
-        return loss_curve
+        
+        return loss_curve, {"forward":self.net_fwd , "backward":self.net_bwd}
     
     @torch.inference_mode()       
     def generate_dataloaders(self, args, x_pairs, t_pairs, direction_to_train: str, outer_iter_idx: int, first_coupling = None):
        
     
-        if outer_iter_idx == 0 and direction_to_train == "forward":
+        if outer_iter_idx == 0 and direction_to_train == "forward" :
 
             if first_coupling == 'ref':
 
@@ -204,7 +207,7 @@ class IMF_DSBM():
                 N = self.args.num_simulation_steps,
                 sig = self.args.sigma,
                 device = self.accelerator.device
-            )[-1]
+            )[0][-1]
 
             match direction_to_train:
 
@@ -221,15 +224,6 @@ class IMF_DSBM():
         
 
         return z0, z1
-    
-    def compute_loss(
-            self,
-            pred : Tensor,
-            target: Tensor
-
-    ) -> Tensor:
-        
-        return F.mse_loss(pred,target)
     
 
 
