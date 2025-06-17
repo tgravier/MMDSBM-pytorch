@@ -10,7 +10,7 @@ import torch.nn as nn
 import matplotlib.pyplot as plt
 
 import bridge.sde.bridge_sampler as sampler
-from utils.visualization import draw_plot, plot_moment
+from utils.visualization import draw_trajectory_video
 #from bridge.nbridges import N_BRIDGES
 
 from utils.metric import get_classic_metrics
@@ -147,11 +147,11 @@ class IMF_DSBM:
 
 
         if outer_iter_idx % self.args.vis_every == 0:
-            draw_plot(
+            draw_trajectory_video(
                 model=self,
                 args=self.args,
-                z0=x_pairs[:,0], 
-                z1=x_pairs[:,1], 
+                z0=x_pairs[:, 0], 
+                z1=x_pairs[:, 1], 
                 direction=direction,
                 outer_iter_idx=outer_iter_idx,
                 num_samples=1000,
@@ -159,7 +159,7 @@ class IMF_DSBM:
                 sigma=self.args.sigma
             )
 
-           
+
 
 
             
@@ -220,7 +220,7 @@ class IMF_DSBM:
                 N = self.args.num_simulation_steps,
                 sig = self.args.sigma,
                 device = self.accelerator.device
-            )[-1]
+            )[0][-1]
 
             match direction_to_train:
 

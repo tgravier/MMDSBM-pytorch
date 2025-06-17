@@ -82,7 +82,7 @@ def sample_sde(zstart: torch.Tensor, net_dict, direction_tosample: str, N: int =
 
     
 
-    return traj
+    return traj, ts
 
 
 

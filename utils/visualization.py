@@ -12,7 +12,12 @@ from bridge.sde.bridge_sampler import sample_sde
 from utils.metric import get_classic_metrics
 
 from typing import List
-
+import os
+import torch
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.animation import FFMpegWriter
+from scipy.stats import gaussian_kde
 
 
 @torch.no_grad()
@@ -45,6 +50,7 @@ def draw_plot(
     num_steps: int = 1000,
     sigma: float = 1.0,
 ):
+
     experiment_name_folder = os.path.join(args.experiment_dir, args.experiment_name)
     folder_fig = os.path.join(experiment_name_folder, "figs")
     os.makedirs(folder_fig, exist_ok=True)
@@ -77,7 +83,7 @@ def draw_plot(
             N=num_steps,
             sig=sigma,
             device=args.accelerator.device
-        )[-1]
+        )
 
     # convert to numpy
     z0_np = z0_sampled.cpu().numpy()
@@ -116,55 +122,83 @@ def draw_plot(
 
 
 
-def plot_moment(
+
+
+@torch.no_grad()
+def draw_trajectory_video(
+    model,
     args,
-    mean_gen: List[torch.Tensor],
-    std_gen: List[torch.Tensor],
-    mean: torch.Tensor,
-    std: torch.Tensor,
-    direction: str
+    z0: torch.Tensor,
+    z1: torch.Tensor,
+    direction: str,
+    outer_iter_idx: int,
+    num_samples: int = 1000,
+    num_steps: int = 1000,
+    sigma: float = 1.0,
+    fps: int = 15,
 ):
-    
-    if not os.path.exists(args.experiment_dir):
-        os.makedirs(args.experiment_dir)
 
-    experiment_name_folder = os.path.join(args.experiment_dir,args.experiment_name)
+    experiment_name_folder = os.path.join(args.experiment_dir, args.experiment_name)
+    folder_fig = os.path.join(experiment_name_folder, "figs")
+    os.makedirs(folder_fig, exist_ok=True)
 
-    if not os.path.exists(experiment_name_folder):
-        os.makedirs(experiment_name_folder)
+    # reshape si nécessaire
+    if z0.dim() == 3:
+        z0 = z0.view(-1, z0.shape[-1])
+    if z1.dim() == 3:
+        z1 = z1.view(-1, z1.shape[-1])
+
+    # échantillonnage
+    idx = torch.randint(0, z0.shape[0], (num_samples,))
+    z0_sampled = z0[idx].to(args.accelerator.device)
+    z1_sampled = z1[idx].to(args.accelerator.device)
+
+    # trajectoire SDE
+    traj, ts = sample_sde(
+        zstart=z0_sampled if direction == 'forward' else z1_sampled,
+        net_dict=model.net_dict,
+        direction_tosample=direction,
+        N=num_steps,
+        sig=sigma,
+        device=args.accelerator.device
+    )
+
+    traj_np = [z.cpu().numpy() for z in traj]
+    z0_np = z0_sampled.cpu().numpy()
+    z1_np = z1_sampled.cpu().numpy()
+
+    # setup figure
+    fig, ax = plt.subplots(figsize=(8, 8))
+    video_path = os.path.join(folder_fig, f"{direction}_iter_{outer_iter_idx}.mp4")
+    metadata = dict(title='SDE Trajectory', artist='matplotlib')
+    writer = FFMpegWriter(fps=fps, metadata=metadata)
+
+    def draw_kde(ax, data, color):
+        kde = gaussian_kde(data.T)
+        x_min, x_max = data[:, 0].min(), data[:, 0].max()
+        y_min, y_max = data[:, 1].min(), data[:, 1].max()
+        x, y = np.mgrid[x_min:x_max:100j, y_min:y_max:100j]
+        positions = np.vstack([x.ravel(), y.ravel()])
+        z = np.reshape(kde(positions).T, x.shape)
+        ax.contour(x, y, z, levels=4, colors=color, linewidths=0.5)
+
+    with writer.saving(fig, video_path, dpi=150):
+        for i, zt in enumerate(traj_np):
+            ax.clear()
+            ax.set_title(f"Bridge Trajectory — {direction} (step {i}/{num_steps})")
+
+            # scatter
+            ax.scatter(z0_np[:, 0], z0_np[:, 1], s=4, alpha=0.5, label='Initial', color='blue')
+            ax.scatter(z1_np[:, 0], z1_np[:, 1], s=4, alpha=0.5, label='Target', color='red')
+            ax.scatter(zt[:, 0], zt[:, 1], s=6, alpha=0.7, label=f'Generated t={i}', color='green')
+
+            # KDE
+            draw_kde(ax, z0_np, 'blue')
+            draw_kde(ax, z1_np, 'red')
+
+            ax.grid(True)
+            ax.legend()
+            plt.tight_layout()
+            writer.grab_frame()
 
 
-    fig_folder = os.path.join(experiment_name_folder, "moment_plot")
-    if not os.path.exists(fig_folder):
-        os.makedirs(fig_folder)
-
-    mean_gen_tensor = torch.stack(mean_gen)  # [T, 2]
-    std_gen_tensor = torch.stack(std_gen)    # [T, 2]
-    x_axis = torch.arange(mean_gen_tensor.shape[0])
-
-    for i, name in enumerate(['x', 'y']):
-        # Mean
-        plt.figure(figsize=(8, 4))
-        plt.plot(x_axis, mean_gen_tensor[:, i], label="Generated", marker='o')
-        plt.hlines(mean[0, i].item(), x_axis[0], x_axis[-1], colors='r', linestyles='--', label="Target")
-        plt.xlabel("Outer Iteration")
-        plt.ylabel("Mean")
-        plt.title(f"{name.upper()} Mean over Training ({direction})")
-        plt.legend()
-        plt.grid(True)
-        plt.tight_layout()
-        plt.savefig(f"{fig_folder}/mean_{name}_{direction}.png", dpi=300)
-        plt.close()
-
-        # Std
-        plt.figure(figsize=(8, 4))
-        plt.plot(x_axis, std_gen_tensor[:, i], label="Generated", marker='o')
-        plt.hlines(std[0, i].item(), x_axis[0], x_axis[-1], colors='r', linestyles='--', label="Target")
-        plt.xlabel("Outer Iteration")
-        plt.ylabel("Standard Deviation")
-        plt.title(f"{name.upper()} Std over Training ({direction})")
-        plt.legend()
-        plt.grid(True)
-        plt.tight_layout()
-        plt.savefig(f"{fig_folder}/std_{name}_{direction}.png", dpi=300)
-        plt.close()
