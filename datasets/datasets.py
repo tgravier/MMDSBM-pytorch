@@ -3,13 +3,14 @@ from torch.utils.data import Dataset
 from sklearn.datasets import make_moons, make_circles
 import numpy as np
 
-from datasets.datasets_registry import DatasetConfig  
+from datasets.datasets_registry import DatasetConfig
 
-#datasets/datasets.py
+# datasets/datasets.py
 
 # ============================
 # === Timed Dataset Class ===
 # ============================
+
 
 class TimedDataset(Dataset):
     def __init__(self, data: torch.Tensor, labels: torch.Tensor, time: float):
@@ -27,7 +28,7 @@ class TimedDataset(Dataset):
 
     def get_time(self) -> float:
         return self.time
-    
+
     def get_all(self):
         return self.data
 
@@ -38,6 +39,7 @@ class TimedDataset(Dataset):
 # ============================
 # === Dataset Loader Func ===
 # ============================
+
 
 def load_dataset(config: DatasetConfig) -> TimedDataset:
     name = config.name
@@ -51,15 +53,21 @@ def load_dataset(config: DatasetConfig) -> TimedDataset:
         std = np.array(params.get("std", [1.0] * dim))
 
         if mean.shape[0] != dim:
-            raise ValueError(f"Mean vector has incorrect dimension: expected {dim}, got {mean.shape[0]}")
+            raise ValueError(
+                f"Mean vector has incorrect dimension: expected {dim}, got {mean.shape[0]}"
+            )
         if std.shape[0] != dim:
-            raise ValueError(f"Std vector has incorrect dimension: expected {dim}, got {std.shape[0]}")
+            raise ValueError(
+                f"Std vector has incorrect dimension: expected {dim}, got {std.shape[0]}"
+            )
 
         data = np.random.normal(loc=mean, scale=std, size=(n, dim))
         labels = np.zeros(n)
-        return TimedDataset(torch.tensor(data, dtype=torch.float32),
-                            torch.tensor(labels, dtype=torch.long),
-                            time)
+        return TimedDataset(
+            torch.tensor(data, dtype=torch.float32),
+            torch.tensor(labels, dtype=torch.long),
+            time,
+        )
 
     elif name == "circle":
         center = np.array(params.get("center", [0.0, 0.0]))
@@ -68,21 +76,24 @@ def load_dataset(config: DatasetConfig) -> TimedDataset:
         n = params.get("n_samples", 1000)
         angles = np.random.uniform(0, 2 * np.pi, n)
         radii = np.random.normal(radius, thickness, n)
-        X = np.stack([
-            center[0] + radii * np.cos(angles),
-            center[1] + radii * np.sin(angles)
-        ], axis=1)
+        X = np.stack(
+            [center[0] + radii * np.cos(angles), center[1] + radii * np.sin(angles)],
+            axis=1,
+        )
         y = np.zeros(n)
-        return TimedDataset(torch.tensor(X, dtype=torch.float32),
-                            torch.tensor(y, dtype=torch.long),
-                            time)
+        return TimedDataset(
+            torch.tensor(X, dtype=torch.float32),
+            torch.tensor(y, dtype=torch.long),
+            time,
+        )
 
     elif name == "moon":
-        X, y = make_moons(n_samples=n,
-                          noise=params.get("noise", 0.1))
-        return TimedDataset(torch.tensor(X, dtype=torch.float32),
-                            torch.tensor(y, dtype=torch.long),
-                            time)
+        X, y = make_moons(n_samples=n, noise=params.get("noise", 0.1))
+        return TimedDataset(
+            torch.tensor(X, dtype=torch.float32),
+            torch.tensor(y, dtype=torch.long),
+            time,
+        )
 
     else:
         raise ValueError(f"Unknown dataset name: {name}")
@@ -104,6 +115,7 @@ if __name__ == "__main__":
 
     # Exemple rapide de test :
     from datasets.datasets_registry import GaussianConfig
+
     config = GaussianConfig(time=1.0, mean=0, std=1, dim=2, n_samples=5)
     dataset = load_dataset(config)
     print(dataset)

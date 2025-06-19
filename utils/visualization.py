@@ -11,7 +11,7 @@ from scipy.stats import gaussian_kde
 from matplotlib import animation, cm
 
 
-from bridge.sde.bridge_sampler import sample_sde
+from bridge.sde.bridge_sampler import inference_sample_sde
 from utils.metric import get_classic_metrics
 
 from typing import List
@@ -410,8 +410,8 @@ def make_trajectory(
         num_steps = num_steps * (len(dataset_train) - 1)
 
     # === Simulate trajectory
-    from bridge.sde.bridge_sampler import sample_sde
-    generated, time = sample_sde(
+    from bridge.sde.bridge_sampler import inference_sample_sde
+    generated, time = inference_sample_sde(
         zstart=z0_sampled,
         net_dict=net_dict,
         t_pairs=t_pairs,

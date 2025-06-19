@@ -94,7 +94,7 @@ class N_Bridges(IMF_DSBM):
         n_samples = (
             time_dataset_init[0].get_all().shape[0]
         )  # Assuming all datasets have the same number of samples
-
+        # shape x0  (time, num_sample,dim)
         x0 = torch.stack(
             [
                 time_dataset.get_all().to(self.args.accelerator.device)
@@ -107,14 +107,19 @@ class N_Bridges(IMF_DSBM):
                 for time_dataset in time_dataset_target
             ]
         )
-        # shape of x0 or x1: (n_samples * n_times, dim)
 
-        x_pairs = torch.stack([x0, x1], dim=2)  # shape: (n_samples * n_times, dim, 2)
+        # shape of x_pairs after bellow : (n_samples * n_times, dim)
+
+        x_pairs = torch.stack([x0, x1], dim=2)  # (n_times, n_samples, 2, dim)
+        x_pairs = x_pairs.reshape(
+            -1, 2, x_pairs.shape[3]
+        )  # (n_times * n_samples, 2, dim)
 
         t_pairs_init = torch.tensor(
             [time_dataset.get_time() for time_dataset in time_dataset_init],
             device=self.args.accelerator.device,
         )  # shape: n_times
+
         t_pairs_target = torch.tensor(
             [time_dataset.get_time() for time_dataset in time_dataset_target],
             device=self.args.accelerator.device,
@@ -150,6 +155,16 @@ class N_Bridges(IMF_DSBM):
                 outer_iter_idx=outer_iter_idx,
             )
 
+            make_trajectory(
+                args=self.args,
+                direction_tosample="forward",
+                net_dict=net_dict,
+                dataset_train=self.datasets_train,
+                outer_iter_idx=outer_iter_idx,
+                num_samples=1000,
+                num_steps=self.args.num_simulation_steps,
+            )
+
             # === BACKWARD ===
             print("Training BACKWARD bridge")
             x_pairs, t_pairs = self.generate_dataset_pairs(forward_pairs)
@@ -158,4 +173,14 @@ class N_Bridges(IMF_DSBM):
                 x_pairs=x_pairs,
                 t_pairs=t_pairs,
                 outer_iter_idx=outer_iter_idx,
+            )
+            
+            make_trajectory(
+                args=self.args,
+                direction_tosample="backward",
+                net_dict=net_dict,
+                dataset_train=self.datasets_train,
+                outer_iter_idx=outer_iter_idx,
+                num_samples=1000,
+                num_steps=self.args.num_simulation_steps,
             )
