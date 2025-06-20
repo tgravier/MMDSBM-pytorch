@@ -102,9 +102,9 @@ def sample_sde(
     score = net_dict[direction_tosample].eval()
     batchsize = z.size(0)  # TODO verif the dim if 0 is still the batchsize
     traj = [z.detach().clone()]
-    traj = []
 
-    for i in range(N):
+
+    for i in range(N-1): #TODO we change N in N-1 verif if its ok
         t = ts[:, i].unsqueeze(1)  # shape [batchsize, 1], chaque sample a son propre t
         pred = score(z, t)  # assume score accepte [batchsize, D] et [batchsize, 1]
         z = z + pred * dt + sig * torch.randn_like(z) * torch.sqrt(dt)
@@ -144,7 +144,7 @@ def inference_sample_sde(
 
     t_list = [ts[0]]  # TODO verif if this is okay, exploding variance at the end
 
-    for i in range(N):
+    for i in range(N-1): #TODO cf function train for sample
         t = torch.full((batchsize, 1), float(ts[i]), device=device)
 
         t_list.append(ts[i])
