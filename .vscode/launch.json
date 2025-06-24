@@ -9,7 +9,7 @@
             "console": "integratedTerminal",
             "args": [
                 "--config",
-                "conf_example"
+                "small_dim"
             ]
         }
     ]

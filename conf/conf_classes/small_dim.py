@@ -2,17 +2,18 @@ from accelerate import Accelerator
 from datasets.datasets_registry import GaussianConfig
 
 class DistributionConfig:
-    def __init__(self, dim: int = 2, n_samples: int = 2000):
+    def __init__(self, dim: int = 3, n_samples: int = 2000):
 
 
-        self.dim = dim  # In Experimetn Config
-        self.n_samples = 2000
+        self.dim = dim 
+        self.dim = dim 
+        self.n_samples = n_samples
 
         # ───── Define training distributions (3 Gaussians)
         self.distributions_train = [
-            GaussianConfig(time=0, mean=[0, 0], std=[1, 1], n_samples=self.n_samples, dim=self.dim),
-            GaussianConfig(time=1, mean=[5, 5], std=[1, 1], n_samples=self.n_samples, dim=self.dim),
-            GaussianConfig(time=2, mean=[10, 10], std=[1, 1], n_samples=self.n_samples, dim=self.dim),
+            GaussianConfig(time=0, mean=[0, 0, 0], std=[1, 1, 1], n_samples=self.n_samples, dim=self.dim),
+            GaussianConfig(time=1, mean=[5, 5, 5], std=[1, 1, 1], n_samples=self.n_samples, dim=self.dim),
+            GaussianConfig(time=2, mean=[10, 10, 10], std=[1, 1, 1], n_samples=self.n_samples, dim=self.dim),
         ]
 
         
@@ -25,10 +26,10 @@ class ExperimentConfig:
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES"
         self.experiment_dir = "experiments_debug"
-        self.experiment_name = "verif_fix_02"
+        self.experiment_name = "small_dim"
 
         # ───── Data Parameters
-        self.dim = 2
+        self.dim = 3
         self.batch_size = 128
         self.n_distributions = 3
 
@@ -38,8 +39,8 @@ class ExperimentConfig:
         # ───── Simulation Parameters
         self.first_coupling = "ref"
         self.sigma = 1
-        self.num_simulation_steps = 20
-        self.nb_inner_opt_steps = 2500
+        self.num_simulation_steps = 80
+        self.nb_inner_opt_steps = 10
         self.nb_outer_iterations = 20
         self.eps = 1e-3
 
@@ -60,11 +61,8 @@ class ExperimentConfig:
         self.net_bwd_layers = [128, 128]
         self.net_bwd_time_dim = 64
 
-        # ───── Logging
+        # ───── Logging / Debug
         self.vis_every = 1
-
-        # ───── Visualisation
-        self.fps = 20
 
         # ───── Accelerator
         self.accelerator = Accelerator()

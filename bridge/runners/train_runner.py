@@ -9,9 +9,10 @@ import torch.nn as nn
 
 
 class trainer_bridges(N_Bridges):
-    def __init__(self, conf_path):
+    def __init__(self, config_classes, tracking_logger, logger):
         # Load and store config
-        self.experiment_config, self.distribution_config = self.load_conf(conf_path)
+        self.experiment_config = config_classes
+        self.distribution_config = self.experiment_config.distribution_cfg
 
         net_fwd, net_bwd = self.instance_network(
             net_fwd_layers=self.experiment_config.net_fwd_layers,
@@ -36,8 +37,6 @@ class trainer_bridges(N_Bridges):
 
         self.launch_experiment()
 
-    def load_conf(self, conf_path):
-        return load_config(conf_path)
 
     def instance_network(
         self, net_fwd_layers, net_fwd_time_dim, net_bwd_layers, net_bwd_time_dim

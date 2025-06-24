@@ -12,7 +12,7 @@ class DistributionConfig:
         self.distributions_train = [
             GaussianConfig(time=0, mean=[0, 0], std=[1, 1], n_samples=self.n_samples, dim=self.dim),
             GaussianConfig(time=1, mean=[5, 5], std=[1, 1], n_samples=self.n_samples, dim=self.dim),
-            GaussianConfig(time=2, mean=[10, 10], std=[1, 1], n_samples=self.n_samples, dim=self.dim),
+            GaussianConfig(time=2, mean=[-5, 5], std=[1, 1], n_samples=self.n_samples, dim=self.dim),
         ]
 
         
@@ -24,8 +24,8 @@ class ExperimentConfig:
 
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES"
-        self.experiment_dir = "experiments_debug"
-        self.experiment_name = "verif_fix_02"
+        self.experiment_dir = "experiments"
+        self.experiment_name = "gaussian_exp_3"
 
         # ───── Data Parameters
         self.dim = 2
@@ -39,12 +39,12 @@ class ExperimentConfig:
         self.first_coupling = "ref"
         self.sigma = 1
         self.num_simulation_steps = 20
-        self.nb_inner_opt_steps = 2500
+        self.nb_inner_opt_steps = 10000
         self.nb_outer_iterations = 20
         self.eps = 1e-3
 
         # ───── Optimization
-        self.lr = 1e-4
+        self.lr = 1e-3
         self.grad_clip = 1.0
         self.optimizer_type = "adam"
         self.optimizer_params = {
@@ -60,11 +60,8 @@ class ExperimentConfig:
         self.net_bwd_layers = [128, 128]
         self.net_bwd_time_dim = 64
 
-        # ───── Logging
+        # ───── Logging / Debug
         self.vis_every = 1
-
-        # ───── Visualisation
-        self.fps = 20
 
         # ───── Accelerator
         self.accelerator = Accelerator()

@@ -9,11 +9,13 @@ from tqdm import tqdm
 import torch.nn as nn
 import matplotlib.pyplot as plt
 import random
+import os
 
 from utils.visualization import make_trajectory
 from bridge.core_dsbm import IMF_DSBM
 from datasets.datasets_registry import DatasetConfig
 from datasets.datasets import load_dataset, TimedDataset
+from bridge.sde.bridge_sampler import inference_sample_sde
 
 
 """ In this file we implement the main class for the training of the Schrodinger Bridge framework with N constraints
@@ -83,7 +85,6 @@ class N_Bridges(IMF_DSBM):
     def prepare_dataset(self, distributions: List[DatasetConfig]) -> List[TimedDataset]:
         return [load_dataset(config) for config in distributions]
 
-    # TODO change needed to have x_pairs compose of (z0,z1, t_min, t_max)
     def generate_dataset_pairs(
         self,
         forward_pairs: List[Tuple[TimedDataset, TimedDataset]],
@@ -155,14 +156,33 @@ class N_Bridges(IMF_DSBM):
                 outer_iter_idx=outer_iter_idx,
             )
 
-            make_trajectory(
-                args=self.args,
-                direction_tosample="forward",
+            if self.args.dim == 2:
+                generated, time = self.inference_test(
+                    args=self.args,
+                    direction_tosample="forward",
+                    net_dict=net_dict,
+                    dataset_train=self.datasets_train,
+                    outer_iter_idx=outer_iter_idx,
+                    num_samples=1000,
+                    num_steps=self.args.num_simulation_steps,
+                    sigma=self.args.sigma,
+                )
+
+                make_trajectory(
+                    args=self.args,
+                    net_dict=net_dict,
+                    generated=generated,
+                    time=time,
+                    direction_tosample="forward",
+                    dataset_train=self.datasets_train,
+                    outer_iter_idx=outer_iter_idx,
+                    fps=self.args.fps,
+                )
+
+            self.save_networks(
                 net_dict=net_dict,
-                dataset_train=self.datasets_train,
+                direction_tosample="forward",
                 outer_iter_idx=outer_iter_idx,
-                num_samples=1000,
-                num_steps=self.args.num_simulation_steps,
             )
 
             # === BACKWARD ===
@@ -174,13 +194,88 @@ class N_Bridges(IMF_DSBM):
                 t_pairs=t_pairs,
                 outer_iter_idx=outer_iter_idx,
             )
-            
-            make_trajectory(
-                args=self.args,
-                direction_tosample="backward",
+            if self.args.dim == 2:
+                generated, time = self.inference_test(
+                    args=self.args,
+                    direction_tosample="backward",
+                    net_dict=net_dict,
+                    dataset_train=self.datasets_train,
+                    outer_iter_idx=outer_iter_idx,
+                    num_samples=1000,
+                    num_steps=self.args.num_simulation_steps,
+                    sigma=self.args.sigma,
+                )
+
+                make_trajectory(
+                    args=self.args,
+                    net_dict=net_dict,
+                    generated=generated,
+                    time=time,
+                    direction_tosample="backward",
+                    dataset_train=self.datasets_train,
+                    outer_iter_idx=outer_iter_idx,
+                    fps=self.args.fps,
+                )
+
+            self.save_networks(
                 net_dict=net_dict,
-                dataset_train=self.datasets_train,
+                direction_tosample="backward",
                 outer_iter_idx=outer_iter_idx,
-                num_samples=1000,
-                num_steps=self.args.num_simulation_steps,
             )
+
+    def inference_test(
+        self,
+        args,
+        direction_tosample: str,
+        net_dict: dict,
+        dataset_train: list,
+        outer_iter_idx: int,
+        num_samples: int = 100,
+        num_steps: int = 200,
+        sigma: float = 1.0,
+        one_bridge: bool = False,
+    ):
+        device = next(net_dict[direction_tosample].parameters()).device
+
+        # === Initial sample points
+        if direction_tosample == "forward":
+            z0 = dataset_train[0].get_all().to(device)
+        elif direction_tosample == "backward":
+            z0 = dataset_train[-1].get_all().to(device)
+        else:
+            raise ValueError("Invalid direction")
+
+        idx = torch.randint(0, z0.shape[0], (num_samples,))
+        z0_sampled = z0[idx]
+
+        t_pairs = [dataset_train[0].get_time(), dataset_train[-1].get_time()]
+        if not one_bridge:
+            num_steps = num_steps * (len(dataset_train) - 1)
+
+        # === Simulate trajectory
+
+        generated, time = inference_sample_sde(
+            zstart=z0_sampled,
+            net_dict=net_dict,
+            t_pairs=t_pairs,
+            direction_tosample=direction_tosample,
+            N=num_steps,
+            sig=sigma,
+            device=device,
+        )
+
+        return generated, time
+
+    def save_networks(self, net_dict, direction_tosample: str, outer_iter_idx: int):
+        base_dir = os.path.join(self.args.experiment_dir, self.args.experiment_name)
+        weights_dir = os.path.join(base_dir, "network_weight")
+        os.makedirs(weights_dir, exist_ok=True)
+
+        filename = f"{outer_iter_idx:04d}_{direction_tosample}.pth"
+        path = os.path.join(weights_dir, filename)
+
+        # Save state_dict
+        torch.save(net_dict[direction_tosample].state_dict(), path)
+        print(
+            f"Saved network {direction_tosample} weights at {outer_iter_idx} to {path}"
+        )

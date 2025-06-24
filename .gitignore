@@ -1,7 +1,10 @@
 .venv/
 experiments/
 experiments_debug/
+old_experiments/
+wandb/
 
 __pycache__/
 *.py[cod]
 DSBM-Gaussian.py
+
