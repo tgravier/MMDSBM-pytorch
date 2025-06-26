@@ -94,6 +94,43 @@ def load_dataset(config: DatasetConfig) -> TimedDataset:
             torch.tensor(y, dtype=torch.long),
             time,
         )
+    
+
+    elif name == "gaussian_mixture":
+        means = np.array(params["means"])         # shape (K, D)
+        stds = np.array(params["stds"])           # shape (K, D)
+        weights = np.array(params["weights"])     # shape (K,)
+        n = params.get("n_samples", 1000)
+        time = config.time
+        k = len(weights)
+        dim = config.input_dim
+
+        if means.shape != stds.shape or means.shape[1] != dim:
+            raise ValueError(f"Mismatch in shapes: means {means.shape}, stds {stds.shape}, expected dim {dim}")
+
+        if not np.isclose(np.sum(weights), 1.0):
+            raise ValueError("Weights must sum to 1.")
+
+
+        component_indices = np.random.choice(k, size=n, p=weights)
+
+
+        data = np.zeros((n, dim), dtype=np.float32)
+        labels = np.zeros(n, dtype=np.int64)
+
+        for i in range(k):
+            idx = component_indices == i
+            n_i = np.sum(idx)
+            if n_i > 0:
+                data[idx] = np.random.normal(loc=means[i], scale=stds[i], size=(n_i, dim))
+                labels[idx] = i
+
+        return TimedDataset(
+            torch.tensor(data, dtype=torch.float32),
+            torch.tensor(labels, dtype=torch.long),
+            time,
+        )
+
 
     else:
         raise ValueError(f"Unknown dataset name: {name}")

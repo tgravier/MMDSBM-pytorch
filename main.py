@@ -1,10 +1,14 @@
 # main.py
 
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
+
 import argparse
 from bridge.runners.train_runner import trainer_bridges
 from utils.tracking_logger import WandbLogger
 from conf.conf_loader import load_config, export_config_dict
 from utils.logger import setup_logger
+
 
 
 def main():

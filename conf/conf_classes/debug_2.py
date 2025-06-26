@@ -1,8 +1,4 @@
 from accelerate import Accelerator
-from datasets.datasets_registry import GaussianConfig, GaussianMixtureConfig
-
-
-from accelerate import Accelerator
 from datasets.datasets_registry import GaussianConfig
 
 
@@ -13,13 +9,13 @@ class ExperimentConfig:
 
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES"
-        self.experiment_dir = "experiments"
-        self.experiment_name = "multivarie_bortoli_exp_3t"
+        self.experiment_dir = "experiments_debug"
+        self.experiment_name = "test"
 
         # ───── Data Parameters
         self.dim = 2
-        self.batch_size = 64
-        self.n_distributions = 4
+        self.batch_size = 256
+        self.n_distributions = 5
 
         # ───── Dataset Configuration
         self.distributions = DistributionConfig(dim=self.dim)
@@ -28,7 +24,7 @@ class ExperimentConfig:
         self.first_coupling = "ref"
         self.sigma = 1
         self.num_simulation_steps = 80
-        self.nb_inner_opt_steps = 2000
+        self.nb_inner_opt_steps = 200
         self.nb_outer_iterations = 100
         self.eps = 1e-3
 
@@ -62,36 +58,48 @@ class ExperimentConfig:
         self.debug = True
 
 
-
 class DistributionConfig:
     def __init__(self, dim: int = 2, n_samples: int = 2000):
         self.dim = dim  # In Experiment Config
         self.n_samples = 10000
 
-
+        # ───── Define training distributions (3 Gaussians)
         self.distributions_train = [
             GaussianConfig(
-            time=0.0,
-            mean=[-3, 4],
-            std=[0.5, 0.5],
-            n_samples=self.n_samples
+                time=0,
+                mean=[5, 1],
+                std=[1, 1],
+                n_samples=self.n_samples,
+                dim=self.dim,
             ),
             GaussianConfig(
-            time=1.0,
-            mean=[-2, 3],
-            std=[0.5, 0.5],
-            n_samples=self.n_samples
+                time=1,
+                mean=[9, 5],
+                std=[2, 2],
+                n_samples=self.n_samples,
+                dim=self.dim,
             ),
             GaussianConfig(
-            time=3.0,
-            mean=[-3, 4],
-            std=[0.5, 0.5],
-            n_samples=self.n_samples
+                time=2,
+                mean=[5, 9],
+                std=[1, 1],
+                n_samples=self.n_samples,
+                dim=self.dim,
             ),
             GaussianConfig(
-            time=4.0,
-            mean=[-2, 3],
-            std=[0.5, 0.5],
-            n_samples=self.n_samples
+                time=3,
+                mean=[1, 5],
+                std=[2, 2],
+                n_samples=self.n_samples,
+                dim=self.dim,
+            ),
+
+            GaussianConfig(
+
+                time = 4,
+                mean = [-1,-1],
+                std = [0.1,5],
+                n_samples=self.n_samples,
+                dim = self.dim
             )
         ]

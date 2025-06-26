@@ -8,7 +8,7 @@ from typing import Optional, Union, List
 # === Dataset Registry Core ===
 # ============================
 
-ARTIFICIAL_DATASETS = ["gaussian", "spiral", "moon", "circle"]
+ARTIFICIAL_DATASETS = ["gaussian", "spiral", "moon", "circle", "gaussian_mixture"]
 REAL_DATASETS = ["mnist", "cifar10"]
 
 class DatasetConfig:
@@ -97,3 +97,32 @@ class MoonConfig(DatasetConfig):
         if noise < 0:
             raise ValueError(f"'noise' must be >= 0, got {noise}")
 
+
+class GaussianMixtureConfig(DatasetConfig):
+    def __init__(self, time, means, stds, weights=None, n_samples=1000):
+        means = np.array(means)
+        stds = np.array(stds)
+
+        n_components, dim = means.shape
+
+        if stds.shape != (n_components, dim):
+            raise ValueError(f"Expected stds of shape ({n_components}, {dim}), got {stds.shape}")
+
+        if weights is None:
+            weights = np.ones(n_components) / n_components
+        else:
+            weights = np.array(weights)
+            if weights.shape != (n_components,):
+                raise ValueError(f"weights must have shape ({n_components},), got {weights.shape}")
+            if not np.isclose(np.sum(weights), 1.0):
+                raise ValueError("weights must sum to 1")
+
+        super().__init__(
+            name="gaussian_mixture",
+            time=time,
+            input_dim=dim,
+            means=means.tolist(),
+            stds=stds.tolist(),
+            weights=weights.tolist(),
+            n_samples=n_samples
+        )
