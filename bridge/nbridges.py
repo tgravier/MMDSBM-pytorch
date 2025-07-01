@@ -156,7 +156,8 @@ class N_Bridges(IMF_DSBM):
                 outer_iter_idx=outer_iter_idx,
             )
 
-            if self.args.dim == 2:
+            if self.args.dim == 2 and outer_iter_idx % self.args.plot_vis_n_epoch == 0  and outer_iter_idx != 0:
+
                 generated, time = self.inference_test(
                     args=self.args,
                     direction_tosample="forward",
@@ -177,6 +178,8 @@ class N_Bridges(IMF_DSBM):
                     dataset_train=self.datasets_train,
                     outer_iter_idx=outer_iter_idx,
                     fps=self.args.fps,
+                    plot_traj=self.args.plot_traj,
+                    number_traj=self.args.number_traj,
                 )
 
             self.save_networks(
@@ -194,7 +197,8 @@ class N_Bridges(IMF_DSBM):
                 t_pairs=t_pairs,
                 outer_iter_idx=outer_iter_idx,
             )
-            if self.args.dim == 2:
+            if self.args.dim == 2 and outer_iter_idx % self.args.plot_vis_n_epoch == 0  and outer_iter_idx != 0:
+
                 generated, time = self.inference_test(
                     args=self.args,
                     direction_tosample="backward",
@@ -215,6 +219,8 @@ class N_Bridges(IMF_DSBM):
                     dataset_train=self.datasets_train,
                     outer_iter_idx=outer_iter_idx,
                     fps=self.args.fps,
+                    plot_traj=self.args.plot_traj,
+                    number_traj=self.args.number_traj,
                 )
 
             self.save_networks(
@@ -237,18 +243,30 @@ class N_Bridges(IMF_DSBM):
     ):
         device = next(net_dict[direction_tosample].parameters()).device
 
+        # Select the dataset with the minimum time value and the maximum time value (fix the bug of permute distrib in the config)
+        max_time_idx = max(
+            range(len(dataset_train)), key=lambda i: float(dataset_train[i].get_time())
+        )
+        min_time_idx = min(
+            range(len(dataset_train)), key=lambda i: float(dataset_train[i].get_time())
+        )
+
+
         # === Initial sample points
         if direction_tosample == "forward":
-            z0 = dataset_train[0].get_all().to(device)
+            z0 = dataset_train[min_time_idx].get_all().to(device)
         elif direction_tosample == "backward":
-            z0 = dataset_train[-1].get_all().to(device)
+            z0 = dataset_train[max_time_idx].get_all().to(device)
         else:
             raise ValueError("Invalid direction")
 
         idx = torch.randint(0, z0.shape[0], (num_samples,))
         z0_sampled = z0[idx]
 
-        t_pairs = [dataset_train[0].get_time(), dataset_train[-1].get_time()]
+        t_pairs = [
+            dataset_train[min_time_idx].get_time(),
+            dataset_train[max_time_idx].get_time(),
+        ]
         if not one_bridge:
             num_steps = num_steps * (len(dataset_train) - 1)
 

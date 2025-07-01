@@ -6,7 +6,8 @@ from accelerate import Accelerator
 from datasets.datasets_registry import GaussianConfig, CircleConfig
 
 
-# Commentary : 
+# Commentary :
+
 
 class ExperimentConfig:
     def __init__(self):
@@ -15,12 +16,12 @@ class ExperimentConfig:
 
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES"
-        self.experiment_dir = "experiments"
-        self.experiment_name = "circle_translation_03"
+        self.experiment_dir = "experiments_debug"
+        self.experiment_name = "debug_warmup_08_goback"
 
         # ───── Data Parameters
         self.dim = 2
-        self.batch_size = 1024
+        self.batch_size = 64
         self.n_distributions = 4
 
         # ───── Dataset Configuration
@@ -49,8 +50,6 @@ class ExperimentConfig:
         self.net_bwd_layers = [128, 128, 128]
         self.net_bwd_time_dim = 128
 
-
-
         # ───── Visualisation
         self.fps = 20
         self.plot_vis_n_epoch = 5
@@ -65,41 +64,50 @@ class ExperimentConfig:
 
         # ───── Debug
 
-        self.debug = False
+        self.debug = True
 
 
 class DistributionConfig:
-    def __init__(self, dim: int = 2, n_samples: int = 4000):
-        self.dim = dim  # In Experiment Config
-        self.n_samples = 5000
+    def __init__(self, dim: int = 2, n_samples: int = 1000):
+        self.dim = dim
+        self.n_samples = n_samples
+
+        spacing = 2.5
+        vertical_offset = 1.5
+        radius = 1.0
+        thickness = 0.1
 
         self.distributions_train = [
-            CircleConfig(
-                center=[0.0, 0.0],
-                radius=0.5,
-                thickness=0.1,
-                n_samples=self.n_samples,
+
+            GaussianConfig(
                 time=0,
-            ),
-            CircleConfig(
-                center=[4, 4],
-                radius=2,
-                thickness=0.1,
-                n_samples=self.n_samples,
+                mean = [0,0],
+                std = [1,1],
+                n_samples = self.n_samples,
+                dim=2,),
+
+                GaussianConfig(
+                time=1,
+                mean = [4,4],
+                std = [1,1],
+                n_samples=  self.n_samples,
+                dim=2,),
+
+                GaussianConfig(
                 time=2,
-            ),
-            CircleConfig(
-                center=[2, 1],
-                radius=0.5,
-                thickness=0.1,
-                n_samples=self.n_samples,
-                time=4,
-            ),
-            CircleConfig(
-                center=[6, -1],
-                radius=3,
-                thickness=0.1,
-                n_samples=self.n_samples,
-                time=6,
-            ),
+                mean = [0,0],
+                std = [1,1],
+                n_samples=  self.n_samples,
+                dim=2,),
+
+                GaussianConfig(
+                time=3,
+                mean = [4,4],
+                std = [1,1],
+                n_samples=  self.n_samples,
+                dim=2,),
+            
+
+
+
         ]

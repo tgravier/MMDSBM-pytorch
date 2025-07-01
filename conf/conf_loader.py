@@ -18,32 +18,64 @@ def load_config(config_name: str):
     attach the distribution to the experiment config, copy the config file into
     the experiment's conf/ folder, and return both the ExperimentConfig and DistributionConfig.
     """
-    module_path = f"conf.conf_classes.{config_name}"
-    module = importlib.import_module(module_path)
+    try:
+        module_path = f"conf.conf_classes.{config_name}"
+        module = importlib.import_module(module_path)
+    except ModuleNotFoundError as e:
+        raise ImportError(f"Could not import configuration module '{module_path}': {e}")
 
-    DistributionConfigCls = getattr(module, "DistributionConfig")
-    ExperimentConfigCls = getattr(module, "ExperimentConfig")
+    try:
+        DistributionConfigCls = getattr(module, "DistributionConfig")
+        ExperimentConfigCls = getattr(module, "ExperimentConfig")
+    except AttributeError as e:
+        raise AttributeError(f"Configuration module '{module_path}' must define 'DistributionConfig' and 'ExperimentConfig': {e}")
 
     distribution_cfg = DistributionConfigCls()
     experiment_cfg = ExperimentConfigCls()
+
+    if not hasattr(experiment_cfg, "experiment_dir") or not hasattr(experiment_cfg, "experiment_name"):
+        raise AttributeError("ExperimentConfig must have 'experiment_dir' and 'experiment_name' attributes.")
+    if not hasattr(experiment_cfg, "debug"):
+        raise AttributeError("ExperimentConfig must have a 'debug' attribute.")
+
     experiment_cfg.distribution_cfg = distribution_cfg
 
     exp_root = Path(experiment_cfg.experiment_dir)
     exp_path = exp_root / experiment_cfg.experiment_name
 
-    # ❗ Check if the experiment already exists
+    #  Check if the experiment already exists
     conf_dir = exp_path / "conf"
 
+    experiments_debug = "experiments_debug"  # Or set this to the correct debug directory name/path
+
     if not experiment_cfg.debug:
+        if str(exp_root) == experiments_debug:
+            raise ValueError(
+                f"Experiment directory '{experiment_cfg.experiment_dir}' is set to the debug directory while debug mode is off. "
+                f"Please check your configuration."
+            )
         if exp_path.exists():
             raise FileExistsError(
                 f"An experiment named '{experiment_cfg.experiment_name}' already exists in '{experiment_cfg.experiment_dir}'. "
                 f"Please choose a different experiment name or remove the existing folder."
             )
-        conf_dir.mkdir(parents=True, exist_ok=False)  # Will raise an error if it already exists
+        try:
+            conf_dir.mkdir(parents=True, exist_ok=False)  # Will raise an error if it already exists
+        except FileExistsError:
+            raise FileExistsError(f"The configuration directory '{conf_dir}' already exists.")
+        except Exception as e:
+            raise OSError(f"Failed to create configuration directory '{conf_dir}': {e}")
     else:
+        if str(exp_root) != experiments_debug:
+            raise ValueError(
+                f"Debug mode is enabled but experiment directory '{experiment_cfg.experiment_dir}' is not set to the debug directory '{experiments_debug}'. "
+                f"Please check your configuration."
+            )
         # In debug mode, allow overwriting and create the conf_dir if needed
-        conf_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            conf_dir.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            raise OSError(f"Failed to create configuration directory '{conf_dir}': {e}")
 
     src_path = Path(module.__file__)
     dst_path = conf_dir / f"{config_name}.py"

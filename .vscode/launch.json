@@ -9,7 +9,7 @@
             "console": "integratedTerminal",
             "args": [
                 "--config",
-                "debug"
+                "debug_warmup"
             ]
         }
     ]

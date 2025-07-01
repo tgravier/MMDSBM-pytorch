@@ -13,8 +13,6 @@ import matplotlib.pyplot as plt
 import bridge.sde.bridge_sampler as sampler
 
 
-
-
 """ In this file we implement the main class for the training of 1 bridges, it represent the inner and outer
     iteration of Algorithm 1 of Shi &  Al 2023
 """
@@ -84,8 +82,6 @@ class IMF_DSBM:
             )
         )
 
-
-
         # at this step we have dataloader with initial point generate and real end point
         pbar = tqdm(
             range(self.args.nb_inner_opt_steps),
@@ -144,20 +140,6 @@ class IMF_DSBM:
             pbar.set_postfix(loss=loss.item())
             loss_curve.append(loss.item())
 
-        # if outer_iter_idx % self.args.vis_every == 0:
-        #     draw_plot(
-        #         model=self,
-        #         args=self.args,
-        #         z0=x_pairs[:, 0],
-        #         z1=x_pairs[:, 1],
-        #         t_pairs=t_pairs,
-        #         direction=direction,
-        #         outer_iter_idx=outer_iter_idx,
-        #         num_samples=1000,
-        #         num_steps=self.args.num_simulation_steps,
-        #         sigma=self.args.sigma,
-        #     )
-
         return loss_curve, {"forward": self.net_fwd, "backward": self.net_bwd}
 
     @torch.inference_mode()
@@ -170,26 +152,46 @@ class IMF_DSBM:
         outer_iter_idx: int,
         first_coupling=None,
     ):
-        if outer_iter_idx == 0 and direction_to_train == "forward":
-            if first_coupling == "ref":
-                zstart = x_pairs[:, 0]
-                zend = (
-                    zstart + torch.randn_like(zstart) * args.sigma
-                )  # TODO see if the perturbation need to be of the same std of the stepsize
+        if (
+            outer_iter_idx <= self.args.warmup_epoch
+        ):  # TODO for this change because the case is just forward, backward it's identity
+            if direction_to_train == "forward":  # TODO debug all warmup tomorrow
+                if first_coupling == "ref":
+                    zstart = x_pairs[:, 0]
+                    zend = (
+                        zstart + torch.randn_like(zstart) * args.sigma
+                    )  # TODO see if the perturbation need to be of the same std of the stepsize
 
-            elif first_coupling == "ind":
-                zstart = x_pairs[:, 0]
-                zend = x_pairs[
-                    :, 1
-                ].clone()  # TODO  !! not ok for n bridges we need to shuffle between zo , zend with the same time_pairs
-                permutation = torch.randperm(len(zend))
-                zend = zend[permutation]
-                t_pairs = t_pairs[permutation]
+                elif first_coupling == "ind":
+                    zstart = x_pairs[:, 0]
+                    zend = x_pairs[:, 1].clone()
+                    permutation = torch.randperm(len(zend))
+                    zend = zend[permutation]
+                    t_pairs = t_pairs[permutation]
 
-            else:
-                raise NotImplementedError
+                else:
+                    raise NotImplementedError
 
-            z0, z1 = zstart, zend
+                z0, z1 = zstart, zend
+
+            elif direction_to_train == "backward":
+                if first_coupling == "ref":
+                    zstart = x_pairs[:, 1]
+                    zend = (
+                        zstart + torch.randn_like(zstart) * args.sigma
+                    )  # TODO see if the perturbation need to be of the same std of the stepsize
+
+                elif first_coupling == "ind":
+                    zstart = x_pairs[:, 1]
+                    zend = x_pairs[:, 0].clone()
+                    permutation = torch.randperm(len(zend))
+                    zend = zend[permutation]
+                    t_pairs = t_pairs[permutation]
+
+                else:
+                    raise NotImplementedError
+
+                z0, z1 = zend, zstart
 
         # if not first it
         else:
