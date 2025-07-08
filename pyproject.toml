@@ -6,9 +6,15 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "accelerate>=1.7.0",
+    "geomloss>=0.2.6",
     "ipykernel>=6.29.5",
     "matplotlib>=3.10.3",
+    "numpy==1.26.4",
+    "pandas>=2.3.0",
+    "phate>=1.0.11",
     "pillow>=11.2.1",
+    "pot>=0.9.5",
+    "python-magic>=0.4.27",
     "scikit-learn>=1.6.1",
     "scipy>=1.15.3",
     "torch>=2.7.0",

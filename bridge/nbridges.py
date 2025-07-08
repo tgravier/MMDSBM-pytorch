@@ -1,25 +1,26 @@
 # bridge/trainer_dsbm.py
 
 import torch
-from torch import Tensor
-from typing import Tuple, Dict, List, Optional, Sequence
-import torch.nn.functional as F
-from torch.utils.data import DataLoader, TensorDataset
-from tqdm import tqdm
-import torch.nn as nn
-import matplotlib.pyplot as plt
-import random
 import os
+import glob
+import random
+import numpy as np
+from typing import Tuple, Dict, List, Optional, Sequence
+import json
+from geomloss import SamplesLoss
+import wandb
 
-from utils.visualization import make_trajectory
 from bridge.core_dsbm import IMF_DSBM
 from datasets.datasets_registry import DatasetConfig
 from datasets.datasets import load_dataset, TimedDataset
 from bridge.sde.bridge_sampler import inference_sample_sde
-
-
-""" In this file we implement the main class for the training of the Schrodinger Bridge framework with N constraints
-"""
+from utils.visualization import make_trajectory
+from utils.metrics import (
+    evaluate_swd_over_time,
+    evaluate_energy_over_time,
+    evaluate_wd_over_time,
+    evaluate_mmd_over_time,
+)
 
 
 class N_Bridges(IMF_DSBM):
@@ -29,6 +30,7 @@ class N_Bridges(IMF_DSBM):
         net_fwd,
         net_bwd,
         optimizer,
+        tracking_logger,
         n_distribution: int,
         distributions_train: Sequence[DatasetConfig],
         distributions_test: Optional[Sequence[DatasetConfig]] = None,
@@ -43,8 +45,9 @@ class N_Bridges(IMF_DSBM):
             sig=args.sigma,
             eps=args.eps,
         )
-        self._validate_config_time_unique(distributions_train, "train")
+        self.tracking_logger = tracking_logger
 
+        self._validate_config_time_unique(distributions_train, "train")
         if distributions_test is not None:
             self._validate_config_time_unique(distributions_test, "test")
             if len(distributions_test) != n_distribution:
@@ -54,7 +57,7 @@ class N_Bridges(IMF_DSBM):
             for d_train, d_test in zip(distributions_train, distributions_test):
                 if d_train.name != d_test.name:
                     raise ValueError(
-                        f"Mismatch between training and test dataset types: {d_train.name} vs {d_test.name}"
+                        f"Train/Test mismatch: {d_train.name} vs {d_test.name}"
                     )
 
         if len(distributions_train) != n_distribution:
@@ -78,156 +81,95 @@ class N_Bridges(IMF_DSBM):
             dups = [d for d in distributions if d.time in duplicates]
             raise ValueError(
                 f"Duplicate time values found in {mode} distributions: {duplicates}\n"
-                f"Conflicting DatasetConfigs:\n"
                 + "\n".join(f"- {repr(d)}" for d in dups)
             )
 
     def prepare_dataset(self, distributions: List[DatasetConfig]) -> List[TimedDataset]:
-        return [load_dataset(config) for config in distributions]
+        return [load_dataset(cfg) for cfg in distributions]
 
     def generate_dataset_pairs(
-        self,
-        forward_pairs: List[Tuple[TimedDataset, TimedDataset]],
+        self, forward_pairs: List[Tuple[TimedDataset, TimedDataset]]
     ):
         time_dataset_init = [pair[0] for pair in forward_pairs]
         time_dataset_target = [pair[1] for pair in forward_pairs]
 
-        n_samples = (
-            time_dataset_init[0].get_all().shape[0]
-        )  # Assuming all datasets have the same number of samples
-        # shape x0  (time, num_sample,dim)
+        n_samples = time_dataset_init[0].get_all().shape[0]
+
         x0 = torch.stack(
-            [
-                time_dataset.get_all().to(self.args.accelerator.device)
-                for time_dataset in time_dataset_init
-            ]
+            [d.get_all().to(self.args.accelerator.device) for d in time_dataset_init]
         )
         x1 = torch.stack(
-            [
-                time_dataset.get_all().to(self.args.accelerator.device)
-                for time_dataset in time_dataset_target
-            ]
+            [d.get_all().to(self.args.accelerator.device) for d in time_dataset_target]
         )
 
-        # shape of x_pairs after bellow : (n_samples * n_times, dim)
-
-        x_pairs = torch.stack([x0, x1], dim=2)  # (n_times, n_samples, 2, dim)
-        x_pairs = x_pairs.reshape(
-            -1, 2, x_pairs.shape[3]
-        )  # (n_times * n_samples, 2, dim)
+        x_pairs = torch.stack([x0, x1], dim=2).reshape(-1, 2, x0.shape[-1])
 
         t_pairs_init = torch.tensor(
-            [time_dataset.get_time() for time_dataset in time_dataset_init],
+            [d.get_time() for d in time_dataset_init],
             device=self.args.accelerator.device,
-        )  # shape: n_times
-
-        t_pairs_target = torch.tensor(
-            [time_dataset.get_time() for time_dataset in time_dataset_target],
-            device=self.args.accelerator.device,
-        )  # shape: n_times
-        t_pairs = torch.stack(  # shape: (n_times, 2)
-            [
-                t_pairs_init,
-                t_pairs_target,
-            ],
-            dim=1,
         )
-        t_pairs = t_pairs.repeat_interleave(
-            n_samples, dim=0
-        )  # shape: (n_times * n_samples, 2)
+        t_pairs_target = torch.tensor(
+            [d.get_time() for d in time_dataset_target],
+            device=self.args.accelerator.device,
+        )
+
+        t_pairs = torch.stack([t_pairs_init, t_pairs_target], dim=1)
+        t_pairs = t_pairs.repeat_interleave(n_samples, dim=0)
 
         return x_pairs, t_pairs
 
     def train(self):
-        for outer_iter_idx in range(self.args.nb_outer_iterations):
+        skip_forward = False
+        if getattr(self.args, "resume_train", False):
+            if self.args.previous_direction_to_train == "forward":
+                skip_forward = True
+
+        for outer_iter_idx in range(
+            self.args.resume_train_nb_outer_iterations, self.args.nb_outer_iterations
+        ):
             print(f"\n[Epoch {outer_iter_idx}]")
 
-            # Get forward pairs: (D1, D2), (D2, D3), ...
             forward_pairs = list(zip(self.datasets_train[:-1], self.datasets_train[1:]))
 
-            # === FORWARD ===
-            print("Training FORWARD bridge")
-            x_pairs, t_pairs = self.generate_dataset_pairs(forward_pairs)
+            if not (
+                skip_forward
+                and outer_iter_idx == self.args.resume_train_nb_outer_iterations
+            ):
+                print("Training FORWARD bridge")
 
-            loss_curve, net_dict = self.train_one_direction(
-                direction="forward",
-                x_pairs=x_pairs,
-                t_pairs=t_pairs,
-                outer_iter_idx=outer_iter_idx,
-            )
+                direction_to_train = "forward"
+                x_pairs, t_pairs = self.generate_dataset_pairs(forward_pairs)
 
-            if self.args.dim == 2 and outer_iter_idx % self.args.plot_vis_n_epoch == 0  and outer_iter_idx != 0:
-
-                generated, time = self.inference_test(
-                    args=self.args,
-                    direction_tosample="forward",
-                    net_dict=net_dict,
-                    dataset_train=self.datasets_train,
+                loss_curve, net_dict = self.train_one_direction(
+                    direction=direction_to_train,
+                    x_pairs=x_pairs,
+                    t_pairs=t_pairs,
                     outer_iter_idx=outer_iter_idx,
-                    num_samples=1000,
-                    num_steps=self.args.num_simulation_steps,
-                    sigma=self.args.sigma,
                 )
 
-                make_trajectory(
-                    args=self.args,
-                    net_dict=net_dict,
-                    generated=generated,
-                    time=time,
-                    direction_tosample="forward",
-                    dataset_train=self.datasets_train,
-                    outer_iter_idx=outer_iter_idx,
-                    fps=self.args.fps,
-                    plot_traj=self.args.plot_traj,
-                    number_traj=self.args.number_traj,
+                self.orchestrate_experiment(
+                    self.args, outer_iter_idx, direction_to_train, net_dict
                 )
 
-            self.save_networks(
-                net_dict=net_dict,
-                direction_tosample="forward",
-                outer_iter_idx=outer_iter_idx,
-            )
+            else:
+                print("Skipping FORWARD training for first resumed iteration")
 
-            # === BACKWARD ===
             print("Training BACKWARD bridge")
+
+            direction_to_train = "backward"
+
             x_pairs, t_pairs = self.generate_dataset_pairs(forward_pairs)
             loss_curve, net_dict = self.train_one_direction(
-                direction="backward",
+                direction=direction_to_train,
                 x_pairs=x_pairs,
                 t_pairs=t_pairs,
                 outer_iter_idx=outer_iter_idx,
             )
-            if self.args.dim == 2 and outer_iter_idx % self.args.plot_vis_n_epoch == 0  and outer_iter_idx != 0:
 
-                generated, time = self.inference_test(
-                    args=self.args,
-                    direction_tosample="backward",
-                    net_dict=net_dict,
-                    dataset_train=self.datasets_train,
-                    outer_iter_idx=outer_iter_idx,
-                    num_samples=1000,
-                    num_steps=self.args.num_simulation_steps,
-                    sigma=self.args.sigma,
-                )
-
-                make_trajectory(
-                    args=self.args,
-                    net_dict=net_dict,
-                    generated=generated,
-                    time=time,
-                    direction_tosample="backward",
-                    dataset_train=self.datasets_train,
-                    outer_iter_idx=outer_iter_idx,
-                    fps=self.args.fps,
-                    plot_traj=self.args.plot_traj,
-                    number_traj=self.args.number_traj,
-                )
-
-            self.save_networks(
-                net_dict=net_dict,
-                direction_tosample="backward",
-                outer_iter_idx=outer_iter_idx,
+            self.orchestrate_experiment(
+                self.args, outer_iter_idx, direction_to_train, net_dict
             )
+
 
     def inference_test(
         self,
@@ -243,34 +185,24 @@ class N_Bridges(IMF_DSBM):
     ):
         device = next(net_dict[direction_tosample].parameters()).device
 
-        # Select the dataset with the minimum time value and the maximum time value (fix the bug of permute distrib in the config)
-        max_time_idx = max(
+        max_idx = max(
             range(len(dataset_train)), key=lambda i: float(dataset_train[i].get_time())
         )
-        min_time_idx = min(
+        min_idx = min(
             range(len(dataset_train)), key=lambda i: float(dataset_train[i].get_time())
         )
 
-
-        # === Initial sample points
-        if direction_tosample == "forward":
-            z0 = dataset_train[min_time_idx].get_all().to(device)
-        elif direction_tosample == "backward":
-            z0 = dataset_train[max_time_idx].get_all().to(device)
-        else:
-            raise ValueError("Invalid direction")
-
+        z0 = (
+            dataset_train[min_idx if direction_tosample == "forward" else max_idx]
+            .get_all()
+            .to(device)
+        )
         idx = torch.randint(0, z0.shape[0], (num_samples,))
         z0_sampled = z0[idx]
 
-        t_pairs = [
-            dataset_train[min_time_idx].get_time(),
-            dataset_train[max_time_idx].get_time(),
-        ]
+        t_pairs = [dataset_train[min_idx].get_time(), dataset_train[max_idx].get_time()]
         if not one_bridge:
-            num_steps = num_steps * (len(dataset_train) - 1)
-
-        # === Simulate trajectory
+            num_steps *= len(dataset_train) - 1
 
         generated, time = inference_sample_sde(
             zstart=z0_sampled,
@@ -289,11 +221,185 @@ class N_Bridges(IMF_DSBM):
         weights_dir = os.path.join(base_dir, "network_weight")
         os.makedirs(weights_dir, exist_ok=True)
 
-        filename = f"{outer_iter_idx:04d}_{direction_tosample}.pth"
-        path = os.path.join(weights_dir, filename)
+        # Remove only previous checkpoint for the same direction
+        last_ckpt_pattern = f"last_checkpoint_{direction_tosample}.pt"
+        old_ckpts = glob.glob(os.path.join(weights_dir, last_ckpt_pattern))
+        for file_path in old_ckpts:
+            try:
+                os.remove(file_path)
+                print(f"Removed old checkpoint for {direction_tosample}: {file_path}")
+            except Exception as e:
+                print(f"Failed to delete {file_path}: {e}")
 
-        # Save state_dict
-        torch.save(net_dict[direction_tosample].state_dict(), path)
-        print(
-            f"Saved network {direction_tosample} weights at {outer_iter_idx} to {path}"
+        # Convert RNG state to serializable format
+        torch_rng = torch.get_rng_state().cpu().tolist()
+        cuda_rng = (
+            [state.cpu().tolist() for state in torch.cuda.get_rng_state_all()]
+            if torch.cuda.is_available()
+            else []
         )
+
+        ckpt = {
+            "state_dict": net_dict[direction_tosample].state_dict(),
+            "optimizer_state": self.optimizer[direction_tosample].state_dict(),
+            "outer_iter_idx": outer_iter_idx,
+            "direction_tosample": direction_tosample,
+            "rng_state": {
+                "torch": torch_rng,
+                "cuda": cuda_rng,
+                "random": random.getstate(),
+                "numpy": np.random.get_state(),
+            },
+        }
+
+        last_ckpt_path = os.path.join(
+            weights_dir, f"last_checkpoint_{direction_tosample}.pt"
+        )
+        archive_path = os.path.join(
+            weights_dir, f"{outer_iter_idx:04d}_{direction_tosample}.pth"
+        )
+
+        torch.save(ckpt, last_ckpt_path)
+        torch.save(ckpt, archive_path)
+
+        print(f"Saved new checkpoint for {direction_tosample}: {last_ckpt_path}")
+        print(f"Archived checkpoint at: {archive_path}")
+
+        # Save meta information to track last direction
+        meta_path = os.path.join(weights_dir, "latest_checkpoint_meta.json")
+        with open(meta_path, "w") as f:
+            json.dump(
+                {
+                    "last_saved_direction": direction_tosample,
+                    "outer_iter_idx": outer_iter_idx,
+                },
+                f,
+            )
+        return last_ckpt_path, archive_path
+
+    def orchestrate_experiment(
+        self, args, outer_iter_idx, direction_to_train, net_dict
+    ):
+        # ───── Determine what should be executed this iteration
+        do_plot = (
+            args.plot_vis
+            and args.dim == 2
+            and outer_iter_idx % args.plot_vis_n_epoch == 0
+        )
+        do_swd = args.display_swd and outer_iter_idx % args.display_swd_n_epoch == 0
+        do_mmd = args.display_mmd and outer_iter_idx % args.display_mmd_n_epoch == 0
+        do_energy = (
+            args.display_energy and outer_iter_idx % args.display_energy_n_epoch == 0
+        )
+        do_save = (
+            args.save_networks and outer_iter_idx % args.save_networks_n_epoch == 0
+        )
+
+        # ───── Only run inference if needed
+        if outer_iter_idx != 0 and (do_plot or do_swd or do_mmd or do_energy):
+            generated, time = self.inference_test(
+                args=args,
+                direction_tosample=direction_to_train,
+                net_dict=net_dict,
+                dataset_train=self.datasets_train,
+                outer_iter_idx=outer_iter_idx,
+                num_samples=args.num_sample_vis,
+                num_steps=args.num_simulation_steps,
+                sigma=args.sigma,
+            )
+        else:
+            generated, time = None, None
+
+        # ───── Trajectory plot
+        if do_plot and generated is not None:
+            save_path_trajectory = make_trajectory(
+                args=args,
+                net_dict=net_dict,
+                generated=generated,
+                time=time,
+                direction_tosample=direction_to_train,
+                dataset_train=self.datasets_train,
+                outer_iter_idx=outer_iter_idx,
+                fps=args.fps,
+                plot_traj=args.plot_traj,
+                number_traj=args.number_traj,
+            )
+
+            if getattr(args, "log_wandb_traj", False):
+                self.tracking_logger.log(
+                    {
+                        f"video/{direction_to_train}/epoch_{outer_iter_idx:04d}": wandb.Video(
+                            save_path_trajectory, fps=args.fps, format="mp4"
+                        )
+                    },
+                    step=outer_iter_idx,
+                )
+
+        # ───── SWD and WD
+        if do_swd and generated is not None:
+            swd_scores = evaluate_swd_over_time(
+                generated=generated,
+                time=time,
+                datasets_train=self.datasets_train,
+                direction_tosample=direction_to_train,
+            )
+            for t, swd in swd_scores:
+                print(f"[SWD @ t={t:.2f}] = {swd:.4f}")
+                if args.log_wandb_swd:
+                    self.tracking_logger.log(
+                        {f"swd/{direction_to_train}/t={t:.2f}": swd, "epoch": outer_iter_idx},
+                        step=outer_iter_idx
+                    )
+
+            if args.dim <= 3:
+                wd_scores = evaluate_wd_over_time(
+                    generated=generated,
+                    time=time,
+                    datasets_train=self.datasets_train,
+                    direction_tosample=direction_to_train,
+                )
+                for t, wd in wd_scores:
+                    print(f"[WD @ t={t:.2f}] = {wd:.4f}")
+                    if args.log_wandb_swd:
+                        self.tracking_logger.log(
+                            {f"wd/{direction_to_train}/t={t:.2f}": wd, "epoch": outer_iter_idx},
+                            step=outer_iter_idx
+                        )
+
+        # ───── MMD
+        if do_mmd and generated is not None:
+            mmd_scores = evaluate_mmd_over_time(
+                generated=generated,
+                time=time,
+                datasets_train=self.datasets_train,
+                direction_tosample=direction_to_train,
+                kernel_type=args.mmd_kernel,
+            )
+            for t, mmd in mmd_scores:
+                print(f"[MMD @ t={t:.2f}] = {mmd:.4f}")
+                if args.log_wandb_mmd:
+                    self.tracking_logger.log(
+                        {f"mmd/{direction_to_train}/t={t:.2f}": mmd, "epoch": outer_iter_idx},
+                        step=outer_iter_idx
+                    )
+
+        # ───── Energy
+        if do_energy and generated is not None:
+            energy_scores = evaluate_energy_over_time(
+                generated=generated,
+                time=time,
+            )
+            for t, energy in energy_scores:
+                print(f"[ENERGY @ t={t:.2f}] = {energy:.4f}")
+                if args.log_wandb_energy:
+                    self.tracking_logger.log(
+                        {f"energy/{direction_to_train}/t={t:.2f}": energy, "epoch": outer_iter_idx},
+                        step=outer_iter_idx
+                    )
+
+        # ───── Save networks
+        if do_save:
+            _, archive_path = self.save_networks(
+                net_dict, direction_to_train, outer_iter_idx
+            )
+            self.tracking_logger.run.save(archive_path)

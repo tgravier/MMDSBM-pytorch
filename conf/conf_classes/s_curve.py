@@ -1,12 +1,5 @@
 from accelerate import Accelerator
-from datasets.datasets_registry import GaussianConfig, GaussianMixtureConfig
-
-
-from accelerate import Accelerator
-from datasets.datasets_registry import GaussianConfig, CircleConfig
-
-
-# Commentary :
+from datasets.datasets_registry import GaussianConfig, SCurveConfig
 
 
 class ExperimentConfig:
@@ -16,8 +9,8 @@ class ExperimentConfig:
 
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES"
-        self.experiment_dir = "experiments_debug"
-        self.experiment_name = "debug_warmup_08_goback"
+        self.experiment_dir = "experiments"
+        self.experiment_name = "scurve_01"
 
         # ───── Data Parameters
         self.dim = 2
@@ -59,12 +52,10 @@ class ExperimentConfig:
 
         # ───── Accelerator
         self.accelerator = Accelerator()
-
         self.gpu_id = 2
 
         # ───── Debug
-
-        self.debug = True
+        self.debug = False
 
 
 class DistributionConfig:
@@ -72,42 +63,33 @@ class DistributionConfig:
         self.dim = dim
         self.n_samples = n_samples
 
-        spacing = 2.5
-        vertical_offset = 1.5
-        radius = 1.0
-        thickness = 0.1
-
         self.distributions_train = [
 
-            GaussianConfig(
+            SCurveConfig(
                 time=0,
-                mean = [0,0],
-                std = [1,1],
-                n_samples = self.n_samples,
-                dim=2,),
+                n_samples=self.n_samples,
+                noise=0.05,
+            ),
 
-                GaussianConfig(
+            GaussianConfig(
                 time=1,
-                mean = [4,4],
-                std = [1,1],
-                n_samples=  self.n_samples,
-                dim=2,),
+                mean=[0, 0],
+                std=[1, 1],
+                n_samples=self.n_samples,
+                dim=2,
+            ),
 
-                GaussianConfig(
+            SCurveConfig(
                 time=2,
-                mean = [0,0],
-                std = [1,1],
-                n_samples=  self.n_samples,
-                dim=2,),
+                n_samples=self.n_samples,
+                noise=0.05,
+            ),
 
-                GaussianConfig(
+            GaussianConfig(
                 time=3,
-                mean = [4,4],
-                std = [1,1],
-                n_samples=  self.n_samples,
-                dim=2,),
-            
-
-
-
+                mean=[0, 0],
+                std=[1, 1],
+                n_samples=self.n_samples,
+                dim=2,
+            ),
         ]

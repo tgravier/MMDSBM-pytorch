@@ -2,7 +2,7 @@ import torch
 from torch.utils.data import Dataset
 from sklearn.datasets import make_moons, make_circles
 import numpy as np
-
+from sklearn.datasets import make_s_curve
 from datasets.datasets_registry import DatasetConfig
 
 # datasets/datasets.py
@@ -128,6 +128,22 @@ def load_dataset(config: DatasetConfig) -> TimedDataset:
         return TimedDataset(
             torch.tensor(data, dtype=torch.float32),
             torch.tensor(labels, dtype=torch.long),
+            time,
+        )
+    
+    elif name == "s_curve":
+        
+
+        noise = params.get("noise", 0.0)
+        X, _ = make_s_curve(n_samples=n, noise=noise)
+
+        # On garde uniquement les colonnes x et z pour rester en 2D
+        X_2d = X[:, [0, 2]]
+        y = np.zeros(n)
+
+        return TimedDataset(
+            torch.tensor(X_2d, dtype=torch.float32),
+            torch.tensor(y, dtype=torch.long),
             time,
         )
 

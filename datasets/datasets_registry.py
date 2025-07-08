@@ -3,12 +3,13 @@ import torch
 from torch.utils.data import Dataset
 from sklearn.datasets import make_circles, make_moons
 from typing import Optional, Union, List
+from sklearn.datasets import make_s_curve
 
 # ============================
 # === Dataset Registry Core ===
 # ============================
 
-ARTIFICIAL_DATASETS = ["gaussian", "spiral", "moon", "circle", "gaussian_mixture"]
+ARTIFICIAL_DATASETS = ["gaussian", "spiral", "moon", "circle", "gaussian_mixture", "s_curve"]
 REAL_DATASETS = ["mnist", "cifar10"]
 
 class DatasetConfig:
@@ -125,4 +126,13 @@ class GaussianMixtureConfig(DatasetConfig):
             stds=stds.tolist(),
             weights=weights.tolist(),
             n_samples=n_samples
+        )
+
+class SCurveConfig(DatasetConfig):
+    def __init__(self, time, n_samples=1000, noise=0.0):
+        if noise < 0:
+            raise ValueError(f"'noise' must be >= 0, got {noise}")
+        super().__init__(
+            "s_curve", time, input_dim=2,
+            n_samples=n_samples, noise=noise
         )

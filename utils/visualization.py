@@ -12,7 +12,7 @@ from matplotlib import animation, cm
 
 
 from bridge.sde.bridge_sampler import inference_sample_sde
-from utils.metric import get_classic_metrics
+from utils.metrics import get_classic_metrics
 
 from typing import List
 
@@ -328,3 +328,4 @@ def make_trajectory(
             writer.grab_frame()
 
     plt.close(fig)
+    return save_path
