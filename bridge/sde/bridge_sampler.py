@@ -147,7 +147,13 @@ def inference_sample_sde(
     for i in range(N-1): #TODO cf function train for sample
         t = torch.full((batchsize, 1), float(ts[i]), device=device)
 
-        t_list.append(ts[i] + dt)
+        if direction_tosample == "forward":
+
+            t_list.append(ts[i] + dt)
+        
+        elif direction_tosample == "backward":
+
+            t_list.append(ts[i] - dt)
 
         pred = score(z, t)
 
