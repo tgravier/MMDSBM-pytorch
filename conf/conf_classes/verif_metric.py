@@ -3,7 +3,7 @@ from datasets.datasets_registry import GaussianConfig, GaussianMixtureConfig
 
 
 from accelerate import Accelerator
-from datasets.datasets_registry import GaussianConfig, CircleConfig
+from datasets.datasets_registry import GaussianConfig, CircleConfig, PhateFromTrajectoryConfig
 
 
 # Commentary :
@@ -15,9 +15,9 @@ class ExperimentConfig:
         self.seed = 42
 
         # ───── Experiment Info
-        self.project_name = "DSBM_N_BRIDGES"
+        self.project_name = "DSBM_N_BRIDGES_02"
         self.experiment_dir = "experiments"
-        self.experiment_name = "verif_metric_01"
+        self.experiment_name = "verif_metric_02"
 
         # ───── Data Parameters
         self.dim = 2
@@ -109,31 +109,5 @@ class DistributionConfig:
 
 
         self.distributions_train = [
-
-            GaussianConfig(
-                time=0,
-                mean = [0,0],
-                std = [1,1],
-                n_samples = self.n_samples,
-                dim=2,),
-
-                GaussianConfig(
-                time=1,
-                mean = [4,4],
-                std = [1,1],
-                n_samples=  self.n_samples,
-                dim=2,),
-
-                GaussianConfig(
-                time=2,
-                mean = [8,8],
-                std = [1,1],
-                n_samples=  self.n_samples,
-                dim=2,),
-
-              
-            
-
-
 
         ]
