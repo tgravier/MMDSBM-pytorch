@@ -60,9 +60,7 @@ class IMF_DSBM:
 
         loss_curve = []
         # 0. generate initial and final points
-
-        dl = iter(
-            self.accelerator.prepare(
+        dataloader = self.accelerator.prepare(
                 DataLoader(
                     TensorDataset(
                         *self.generate_dataloaders(
@@ -80,7 +78,9 @@ class IMF_DSBM:
                     drop_last=True,
                 )
             )
-        )
+        dl = iter(dataloader)
+            
+        
 
         # at this step we have dataloader with initial point generate and real end point
         pbar = tqdm(
@@ -94,27 +94,9 @@ class IMF_DSBM:
                 z0, z1, t_tensor = next(dl)
 
             except StopIteration:
-                dl = iter(
-                    self.accelerator.prepare(
-                        DataLoader(
-                            TensorDataset(
-                                *self.generate_dataloaders(
-                                    args=self.args,
-                                    x_pairs=x_pairs,
-                                    t_pairs=t_pairs,
-                                    direction_to_train=direction,
-                                    outer_iter_idx=outer_iter_idx,
-                                    first_coupling=self.args.first_coupling,
-                                )
-                            ),
-                            batch_size=self.args.batch_size,
-                            shuffle=True,
-                            pin_memory=False,
-                            drop_last=True,
-                        )
-                    )
-                )
-
+                dl = iter(dataloader)
+                    
+                
             z_pairs = torch.stack([z0, z1], dim=1).to(self.device)
 
             # 2. get Brownian bridge

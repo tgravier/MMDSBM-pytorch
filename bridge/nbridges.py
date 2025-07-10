@@ -87,7 +87,7 @@ class N_Bridges(IMF_DSBM):
     def prepare_dataset(self, distributions: List[DatasetConfig]) -> List[TimedDataset]:
         return [load_dataset(cfg) for cfg in distributions]
 
-    def generate_dataset_pairs_old(
+    def generate_dataset_pairs(
         self, forward_pairs: List[Tuple[TimedDataset, TimedDataset]]
     ):
         time_dataset_init = [pair[0] for pair in forward_pairs]
@@ -118,51 +118,7 @@ class N_Bridges(IMF_DSBM):
 
         return x_pairs, t_pairs
     
-    def generate_dataset_pairs(
-        self, forward_pairs: List[Tuple[TimedDataset, TimedDataset]]
-    ):
-        import torch
-
-        x0_list = []
-        x1_list = []
-        t_pairs_full = []
-
-        for d0, d1 in forward_pairs:
-            x0 = d0.get_all()
-            x1 = d1.get_all()
-
-            n0, n1 = x0.shape[0], x1.shape[0]
-            n = min(n0, n1)
-
-            # Subsample from the larger one
-            if n0 > n:
-                idx0 = torch.randperm(n0)[:n]
-                x0 = x0[idx0]
-            else:
-                x0 = x0
-
-            if n1 > n:
-                idx1 = torch.randperm(n1)[:n]
-                x1 = x1[idx1]
-            else:
-                x1 = x1
-
-            x0_list.append(x0.to(self.args.accelerator.device))
-            x1_list.append(x1.to(self.args.accelerator.device))
-
-            t_pair = torch.tensor(
-                [d0.get_time(), d1.get_time()],
-                device=self.args.accelerator.device
-            )
-            t_pairs_full.append(t_pair.unsqueeze(0).repeat(n, 1))
-
-        x0 = torch.cat(x0_list, dim=0)
-        x1 = torch.cat(x1_list, dim=0)
-        x_pairs = torch.stack([x0, x1], dim=1)  # shape: [total_samples, 2, D]
-        t_pairs = torch.cat(t_pairs_full, dim=0)
-
-        return x_pairs, t_pairs
-
+  
 
     def train(self):
         skip_forward = False
