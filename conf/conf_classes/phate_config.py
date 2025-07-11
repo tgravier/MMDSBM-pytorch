@@ -21,7 +21,7 @@ class ExperimentConfig:
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES_02"
         self.experiment_dir = "experiments"
-        self.experiment_name = "phate_06"
+        self.experiment_name = "phate_07"
 
         # ───── Data Parameters
         self.dim = 100
@@ -34,24 +34,24 @@ class ExperimentConfig:
         # ───── Simulation Parameters
         self.warmup_epoch = 5  ## Warmup
         self.first_coupling = "ind"
-        self.sigma = 0.1
-        self.num_simulation_steps = 80
+        self.sigma = 0.3
+        self.num_simulation_steps = 40
         self.nb_inner_opt_steps = 5000
         self.nb_outer_iterations = 40
         self.eps = 1e-4
 
         # ───── Optimization
-        self.lr = 1e-5
+        self.lr = 2e-4
         self.grad_clip = 1.0
         self.optimizer_type = "adam"
         self.optimizer_params = {"betas": (0.9, 0.999), "weight_decay": 0.0}
 
         # ───── Network: Forward score model
-        self.net_fwd_layers = [164, 512, 512,]
+        self.net_fwd_layers = [128, 256, 128,]
         self.net_fwd_time_dim = 64
 
         # ───── Network: Backward score model
-        self.net_bwd_layers = [164, 512, 512,]
+        self.net_bwd_layers = [128, 256, 128,]
         self.net_bwd_time_dim = 64
 
         # ───── Visualisation

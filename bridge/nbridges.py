@@ -321,7 +321,6 @@ class N_Bridges(IMF_DSBM):
         # ───── Determine what should be executed this iteration
         do_plot = (
             args.plot_vis
-            and args.dim == 2
             and outer_iter_idx % args.plot_vis_n_epoch == 0
         )
         do_swd = args.display_swd and outer_iter_idx % args.display_swd_n_epoch == 0

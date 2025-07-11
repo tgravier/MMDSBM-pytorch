@@ -117,12 +117,12 @@ class IMF_DSBM:
             self.accelerator.backward(loss)
 
             # === GET GRADIENT NORM BEFORE CLIPPING ===
-            grads_before_clip = [
-                p.grad.detach().flatten()
-                for p in self.net_dict[direction].parameters()
-                if p.grad is not None
-            ]
-            global_grad_norm = torch.norm(torch.cat(grads_before_clip), p=2).item()
+            total_norm = 0.0
+            for p in self.net_dict[direction].parameters():
+                if p.grad is not None:
+                    param_norm = p.grad.data.norm(2)
+                    total_norm += param_norm.item() ** 2
+            global_grad_norm = total_norm ** 0.5
 
             grad_norm_curve.append(global_grad_norm)
 
