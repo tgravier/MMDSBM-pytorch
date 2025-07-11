@@ -63,32 +63,34 @@ class IMF_DSBM:
 
         # 0. generate initial and final points
         dataloader = self.accelerator.prepare(
-                DataLoader(
-                    TensorDataset(
-                        *self.generate_dataloaders(
-                            args=self.args,
-                            x_pairs=x_pairs,  # TODO give here x_pairs and time but x_pairs can be from different time_pairs
-                            t_pairs=t_pairs,
-                            direction_to_train=direction,
-                            outer_iter_idx=outer_iter_idx,
-                            first_coupling=self.args.first_coupling,
-                        )
-                    ),
-                    batch_size=self.args.batch_size,
-                    shuffle=True,
-                    pin_memory=False,
-                    drop_last=True,
-                )
+            DataLoader(
+                TensorDataset(
+                    *self.generate_dataloaders(
+                        args=self.args,
+                        x_pairs=x_pairs,  # TODO give here x_pairs and time but x_pairs can be from different time_pairs
+                        t_pairs=t_pairs,
+                        direction_to_train=direction,
+                        outer_iter_idx=outer_iter_idx,
+                        first_coupling=self.args.first_coupling,
+                    )
+                ),
+                batch_size=self.args.batch_size,
+                shuffle=True,
+                pin_memory=False,
+                drop_last=True,
             )
+        )
         dl = iter(dataloader)
-            
-        
 
         # at this step we have dataloader with initial point generate and real end point
         pbar = tqdm(
             range(self.args.nb_inner_opt_steps),
             desc=f"{direction} | Outer {outer_iter_idx}",
         )
+        if outer_iter_idx <= self.args.warmup_epoch: # if we are in warm up zone, use warmup_inner_opt_step for config
+            
+            inner_opt_step = self.args.warmup_inner_opt_step
+        
 
         for inner_opt_step in pbar:
             # 1. get batch of marginal points
@@ -97,8 +99,7 @@ class IMF_DSBM:
 
             except StopIteration:
                 dl = iter(dataloader)
-                    
-                
+
             z_pairs = torch.stack([z0, z1], dim=1).to(self.device)
 
             # 2. get Brownian bridge
@@ -122,7 +123,7 @@ class IMF_DSBM:
                 if p.grad is not None:
                     param_norm = p.grad.data.norm(2)
                     total_norm += param_norm.item() ** 2
-            global_grad_norm = total_norm ** 0.5
+            global_grad_norm = total_norm**0.5
 
             grad_norm_curve.append(global_grad_norm)
 
@@ -136,7 +137,9 @@ class IMF_DSBM:
             loss_curve.append(loss.item())
 
         avg_loss = sum(loss_curve) / len(loss_curve) if loss_curve else 0.0
-        avg_grad = sum(grad_norm_curve) / len(grad_norm_curve) if grad_norm_curve else 0.0
+        avg_grad = (
+            sum(grad_norm_curve) / len(grad_norm_curve) if grad_norm_curve else 0.0
+        )
 
         return avg_loss, avg_grad, {"forward": self.net_fwd, "backward": self.net_bwd}
 

@@ -154,6 +154,8 @@ class N_Bridges(IMF_DSBM):
 
 
     def train(self):
+
+        
         skip_forward = False
         if getattr(self.args, "resume_train", False):
             if self.args.previous_direction_to_train == "forward":

@@ -21,12 +21,12 @@ class ExperimentConfig:
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES_02"
         self.experiment_dir = "experiments"
-        self.experiment_name = "phate_09"
+        self.experiment_name = "phate_10"
 
         # ───── Data Parameters
         self.dim = 100
         self.batch_size = 256
-        self.n_distributions = 5
+        self.n_distributions = 10
 
         # ───── Dataset Configuration
         self.distributions = DistributionConfig(dim=self.dim)
@@ -34,10 +34,10 @@ class ExperimentConfig:
         # ───── Simulation Parameters
         self.warmup_epoch = 5  ## Warmup
         self.first_coupling = "ind"
-        self.sigma = 0.3
+        self.sigma = 1
         self.num_simulation_steps = 40
-        self.nb_inner_opt_steps = 50000
-        self.nb_outer_iterations = 40
+        self.nb_inner_opt_steps = 20000
+        self.nb_outer_iterations = 80
         self.eps = 1e-4
 
         # ───── Optimization
@@ -60,7 +60,7 @@ class ExperimentConfig:
         self.plot_vis = True
         self.log_wandb_traj = True
         self.plot_vis_n_epoch = 1
-        self.num_sample_vis = 1000
+        self.num_sample_vis = 256
         self.plot_traj = False
         self.number_traj = 20
 
@@ -112,20 +112,50 @@ class DistributionConfig:
                         PhateFromTrajectoryConfig(
                 time=1,
                 embedding_dim=100,
-                file_path="datasets/data/phate_from_trajectory/pcs_label_1.npz",
+                file_path="datasets/data/phate_from_trajectory/pcs_label_0.npz",
             ),
+
                         PhateFromTrajectoryConfig(
                 time=2,
                 embedding_dim=100,
-                file_path="datasets/data/phate_from_trajectory/pcs_label_2.npz",
+                file_path="datasets/data/phate_from_trajectory/pcs_label_1.npz",
             ),
+
+
                         PhateFromTrajectoryConfig(
                 time=3,
+                embedding_dim=100,
+                file_path="datasets/data/phate_from_trajectory/pcs_label_1.npz",
+            ),
+                        PhateFromTrajectoryConfig(
+                time=4,
+                embedding_dim=100,
+                file_path="datasets/data/phate_from_trajectory/pcs_label_2.npz",
+            ),
+                                    PhateFromTrajectoryConfig(
+                time=5,
+                embedding_dim=100,
+                file_path="datasets/data/phate_from_trajectory/pcs_label_2.npz",
+            ),
+                
+                        PhateFromTrajectoryConfig(
+                time=6,
+                embedding_dim=100,
+                file_path="datasets/data/phate_from_trajectory/pcs_label_3.npz",
+            ),
+                                    PhateFromTrajectoryConfig(
+                time=7,
                 embedding_dim=100,
                 file_path="datasets/data/phate_from_trajectory/pcs_label_3.npz",
             ),
                         PhateFromTrajectoryConfig(
-                time=4,
+                time=8,
+                embedding_dim=100,
+                file_path="datasets/data/phate_from_trajectory/pcs_label_4.npz",
+            ),
+
+                                    PhateFromTrajectoryConfig(
+                time=9,
                 embedding_dim=100,
                 file_path="datasets/data/phate_from_trajectory/pcs_label_4.npz",
             ),
