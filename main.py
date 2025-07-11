@@ -1,7 +1,7 @@
 # main.py
 
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 
 import argparse
 from bridge.runners.train_runner import trainer_bridges

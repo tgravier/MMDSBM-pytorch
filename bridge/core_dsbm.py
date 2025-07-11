@@ -59,6 +59,8 @@ class IMF_DSBM:
         # x_pairs shape (num_distrib, num_samples, time, dim)
 
         loss_curve = []
+        grad_norm_curve = []
+
         # 0. generate initial and final points
         dataloader = self.accelerator.prepare(
                 DataLoader(
@@ -113,6 +115,17 @@ class IMF_DSBM:
             loss = loss.mean()
 
             self.accelerator.backward(loss)
+
+            # === GET GRADIENT NORM BEFORE CLIPPING ===
+            grads_before_clip = [
+                p.grad.detach().flatten()
+                for p in self.net_dict[direction].parameters()
+                if p.grad is not None
+            ]
+            global_grad_norm = torch.norm(torch.cat(grads_before_clip), p=2).item()
+
+            grad_norm_curve.append(global_grad_norm)
+
             self.accelerator.clip_grad_norm_(
                 self.net_dict[direction].parameters(), self.args.grad_clip
             )
@@ -122,7 +135,10 @@ class IMF_DSBM:
             pbar.set_postfix(loss=loss.item())
             loss_curve.append(loss.item())
 
-        return loss_curve, {"forward": self.net_fwd, "backward": self.net_bwd}
+        avg_loss = sum(loss_curve) / len(loss_curve) if loss_curve else 0.0
+        avg_grad = sum(grad_norm_curve) / len(grad_norm_curve) if grad_norm_curve else 0.0
+
+        return avg_loss, avg_grad, {"forward": self.net_fwd, "backward": self.net_bwd}
 
     @torch.inference_mode()
     def generate_dataloaders(

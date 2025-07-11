@@ -97,7 +97,7 @@ class ExperimentConfig:
 
 class DistributionConfig:
     def __init__(self, dim: int = 2, n_samples: int = 2000):
-        self.dim = dim  # In Experimetn Config
+        self.dim = dim  # In Experiment Config
         self.n_samples = 10000
 
         # ───── Define training distributions (3 Gaussians)

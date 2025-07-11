@@ -87,7 +87,7 @@ class N_Bridges(IMF_DSBM):
     def prepare_dataset(self, distributions: List[DatasetConfig]) -> List[TimedDataset]:
         return [load_dataset(cfg) for cfg in distributions]
 
-    def generate_dataset_pairs(
+    def generate_dataset_pairs_old(
         self, forward_pairs: List[Tuple[TimedDataset, TimedDataset]]
     ):
         time_dataset_init = [pair[0] for pair in forward_pairs]
@@ -118,7 +118,40 @@ class N_Bridges(IMF_DSBM):
 
         return x_pairs, t_pairs
     
-  
+    def generate_dataset_pairs(self, forward_pairs: List[Tuple[TimedDataset, TimedDataset]]):
+        x_pairs_list = []
+        t_pairs_list = []
+
+        for init_ds, target_ds in forward_pairs:
+            x_a = init_ds.get_all().to(self.args.accelerator.device)  # [n_a, d]
+            x_b = target_ds.get_all().to(self.args.accelerator.device)  # [n_b, d]
+
+            t_a = init_ds.get_time()
+            t_b = target_ds.get_time()
+
+            n_a = x_a.shape[0]
+            n_b = x_b.shape[0]
+
+            if n_a >= n_b:
+                indices_a = torch.linspace(0, n_a - 1, steps=n_b).long()
+                x_a_sampled = x_a[indices_a]
+            else:
+
+                reps = (n_b + n_a - 1) // n_a  # ceil
+                x_a_sampled = x_a.repeat(reps, 1)[:n_b]
+
+            x_pair = torch.stack([x_a_sampled, x_b], dim=1)  # [n_b, 2, d]
+            x_pairs_list.append(x_pair)
+
+            t_pair = torch.tensor([t_a, t_b], device=self.args.accelerator.device)
+            t_pair = t_pair.repeat(n_b, 1)  # [n_b, 2]
+            t_pairs_list.append(t_pair)
+
+        x_pairs = torch.cat(x_pairs_list, dim=0)
+        t_pairs = torch.cat(t_pairs_list, dim=0)
+
+        return x_pairs, t_pairs
+
 
     def train(self):
         skip_forward = False
@@ -142,7 +175,7 @@ class N_Bridges(IMF_DSBM):
                 direction_to_train = "forward"
                 x_pairs, t_pairs = self.generate_dataset_pairs(forward_pairs)
 
-                loss_curve, net_dict = self.train_one_direction(
+                self.avg_loss, self.avg_grad , net_dict = self.train_one_direction(
                     direction=direction_to_train,
                     x_pairs=x_pairs,
                     t_pairs=t_pairs,
@@ -153,6 +186,8 @@ class N_Bridges(IMF_DSBM):
                     self.args, outer_iter_idx, direction_to_train, net_dict
                 )
 
+
+
             else:
                 print("Skipping FORWARD training for first resumed iteration")
 
@@ -161,7 +196,8 @@ class N_Bridges(IMF_DSBM):
             direction_to_train = "backward"
 
             x_pairs, t_pairs = self.generate_dataset_pairs(forward_pairs)
-            loss_curve, net_dict = self.train_one_direction(
+
+            self.avg_loss, self.avg_grad , net_dict = self.train_one_direction(
                 direction=direction_to_train,
                 x_pairs=x_pairs,
                 t_pairs=t_pairs,
@@ -296,6 +332,17 @@ class N_Bridges(IMF_DSBM):
         do_save = (
             args.save_networks and outer_iter_idx % args.save_networks_n_epoch == 0
         )
+        
+        # Plot loss and grad on wandb
+        wandb.log({
+            f"loss/{direction_to_train}": self.avg_loss,
+            f"grad_norm/{direction_to_train}": self.avg_grad,
+            "direction": direction_to_train,
+            "epoch": outer_iter_idx,
+        }, step=outer_iter_idx)
+            
+
+
 
         # ───── Only run inference if needed
         if outer_iter_idx != 0 and (do_plot or do_swd or do_mmd or do_energy):
