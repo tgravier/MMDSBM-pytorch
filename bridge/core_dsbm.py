@@ -82,15 +82,18 @@ class IMF_DSBM:
         )
         dl = iter(dataloader)
 
+        nb_inner_opt_steps = self.args.nb_inner_opt_steps
+
+        if (
+            outer_iter_idx <= self.args.warmup_epoch
+        ):  # if we are in warm up zone, use warmup_inner_opt_step for config
+            nb_inner_opt_steps = self.args.warmup_nb_inner_opt_steps
+
         # at this step we have dataloader with initial point generate and real end point
         pbar = tqdm(
-            range(self.args.nb_inner_opt_steps),
+            range(nb_inner_opt_steps),
             desc=f"{direction} | Outer {outer_iter_idx}",
         )
-        if outer_iter_idx <= self.args.warmup_epoch: # if we are in warm up zone, use warmup_inner_opt_step for config
-            
-            inner_opt_step = self.args.warmup_inner_opt_step
-        
 
         for inner_opt_step in pbar:
             # 1. get batch of marginal points

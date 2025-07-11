@@ -32,13 +32,19 @@ class ExperimentConfig:
         self.distributions = DistributionConfig(dim=self.dim)
 
         # ───── Simulation Parameters
-        self.warmup_epoch = 5  ## Warmup
+        
         self.first_coupling = "ind"
         self.sigma = 1
         self.num_simulation_steps = 40
-        self.nb_inner_opt_steps = 20000
+        self.nb_inner_opt_steps = 10000
         self.nb_outer_iterations = 80
         self.eps = 1e-4
+
+
+        # ───── WARMUP Parameters
+        self.warmup_epoch = 0  ## Warmup
+        self.warmup_inner_opt_step = 50000
+
 
         # ───── Optimization
         self.lr = 2e-4
