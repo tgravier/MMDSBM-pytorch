@@ -12,7 +12,7 @@ class ExperimentConfig:
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES_02"
         self.experiment_dir = "experiments_debug"
-        self.experiment_name = "gaussian_dim2_02"
+        self.experiment_name = "gaussian_dim2_03"
 
         # ───── Data Parameters
         self.dim = 2
@@ -24,6 +24,7 @@ class ExperimentConfig:
 
         # ───── Simulation Parameters
         self.warmup_epoch = 5  ## Warmup
+        self.warmup_nb_inner_opt_steps = 5000
         self.first_coupling = "ind"
         self.sigma = 1
         self.num_simulation_steps = 80

@@ -19,14 +19,14 @@ class ExperimentConfig:
         self.seed = 42
 
         # ───── Experiment Info
-        self.project_name = "DSBM_N_BRIDGES_02"
-        self.experiment_dir = "experiments"
-        self.experiment_name = "phate_10"
+        self.project_name = "DSBM_N_BRIDGES_DEBUG"
+        self.experiment_dir = "experiments_debug"
+        self.experiment_name = "debug_003"
 
         # ───── Data Parameters
         self.dim = 100
-        self.batch_size = 256
-        self.n_distributions = 10
+        self.batch_size = 128
+        self.n_distributions = 2
 
         # ───── Dataset Configuration
         self.distributions = DistributionConfig(dim=self.dim)
@@ -34,30 +34,30 @@ class ExperimentConfig:
         # ───── Simulation Parameters
         
         self.first_coupling = "ind"
-        self.sigma = 1
-        self.num_simulation_steps = 40
-        self.nb_inner_opt_steps = 10000
-        self.nb_outer_iterations = 80
+        self.sigma = 0.5
+        self.num_simulation_steps = 15
+        self.nb_inner_opt_steps = 1000
+        self.nb_outer_iterations = 20
         self.eps = 1e-4
 
 
         # ───── WARMUP Parameters
         self.warmup_epoch = 0  ## Warmup
-        self.warmup_inner_opt_step = 50000
+        self.warmup_nb_inner_opt_steps = 5000
 
 
         # ───── Optimization
         self.lr = 2e-4
-        self.grad_clip = 4
+        self.grad_clip = 1
         self.optimizer_type = "adam"
         self.optimizer_params = {"betas": (0.9, 0.999), "weight_decay": 0.0}
 
         # ───── Network: Forward score model
-        self.net_fwd_layers = [128, 256, 128,]
+        self.net_fwd_layers = [128, 128,]
         self.net_fwd_time_dim = 64
 
         # ───── Network: Backward score model
-        self.net_bwd_layers = [128, 256, 128,]
+        self.net_bwd_layers = [128, 128,]
         self.net_bwd_time_dim = 64
 
         # ───── Visualisation
@@ -66,7 +66,7 @@ class ExperimentConfig:
         self.plot_vis = True
         self.log_wandb_traj = True
         self.plot_vis_n_epoch = 1
-        self.num_sample_vis = 256
+        self.num_sample_vis = 500
         self.plot_traj = False
         self.number_traj = 20
 
@@ -100,13 +100,13 @@ class ExperimentConfig:
 
         # ───── Debug
 
-        self.debug = False
+        self.debug = True
 
 
 class DistributionConfig:
     def __init__(self, dim: int = 2, n_samples: int = 1000):
         self.dim = dim
-        self.n_samples = n_samples
+        self.n_samples = 2381
 
         self.distributions_train = [
             PhateFromTrajectoryConfig(
@@ -115,54 +115,11 @@ class DistributionConfig:
                 file_path="datasets/data/phate_from_trajectory/pcs_label_0.npz",
             ),
 
+                
                         PhateFromTrajectoryConfig(
                 time=1,
                 embedding_dim=100,
-                file_path="datasets/data/phate_from_trajectory/pcs_label_0.npz",
-            ),
-
-                        PhateFromTrajectoryConfig(
-                time=2,
-                embedding_dim=100,
                 file_path="datasets/data/phate_from_trajectory/pcs_label_1.npz",
             ),
-
-
-                        PhateFromTrajectoryConfig(
-                time=3,
-                embedding_dim=100,
-                file_path="datasets/data/phate_from_trajectory/pcs_label_1.npz",
-            ),
-                        PhateFromTrajectoryConfig(
-                time=4,
-                embedding_dim=100,
-                file_path="datasets/data/phate_from_trajectory/pcs_label_2.npz",
-            ),
-                                    PhateFromTrajectoryConfig(
-                time=5,
-                embedding_dim=100,
-                file_path="datasets/data/phate_from_trajectory/pcs_label_2.npz",
-            ),
-                
-                        PhateFromTrajectoryConfig(
-                time=6,
-                embedding_dim=100,
-                file_path="datasets/data/phate_from_trajectory/pcs_label_3.npz",
-            ),
-                                    PhateFromTrajectoryConfig(
-                time=7,
-                embedding_dim=100,
-                file_path="datasets/data/phate_from_trajectory/pcs_label_3.npz",
-            ),
-                        PhateFromTrajectoryConfig(
-                time=8,
-                embedding_dim=100,
-                file_path="datasets/data/phate_from_trajectory/pcs_label_4.npz",
-            ),
-
-                                    PhateFromTrajectoryConfig(
-                time=9,
-                embedding_dim=100,
-                file_path="datasets/data/phate_from_trajectory/pcs_label_4.npz",
-            ),
+                                    
         ]

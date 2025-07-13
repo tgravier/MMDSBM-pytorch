@@ -87,9 +87,10 @@ class N_Bridges(IMF_DSBM):
     def prepare_dataset(self, distributions: List[DatasetConfig]) -> List[TimedDataset]:
         return [load_dataset(cfg) for cfg in distributions]
 
-    def generate_dataset_pairs_old(
-        self, forward_pairs: List[Tuple[TimedDataset, TimedDataset]]
+    def generate_dataset_pairs(
+        self, forward_pairs: List[Tuple[TimedDataset, TimedDataset]], outer_iter_idx
     ):
+
         time_dataset_init = [pair[0] for pair in forward_pairs]
         time_dataset_target = [pair[1] for pair in forward_pairs]
 
@@ -118,7 +119,7 @@ class N_Bridges(IMF_DSBM):
 
         return x_pairs, t_pairs
     
-    def generate_dataset_pairs(self, forward_pairs: List[Tuple[TimedDataset, TimedDataset]]):
+    def generate_dataset_pairs_test(self, forward_pairs: List[Tuple[TimedDataset, TimedDataset]]):
         x_pairs_list = []
         t_pairs_list = []
 
@@ -161,12 +162,16 @@ class N_Bridges(IMF_DSBM):
             if self.args.previous_direction_to_train == "forward":
                 skip_forward = True
 
+ 
+
         for outer_iter_idx in range(
             self.args.resume_train_nb_outer_iterations, self.args.nb_outer_iterations
         ):
             print(f"\n[Epoch {outer_iter_idx}]")
-
+            
             forward_pairs = list(zip(self.datasets_train[:-1], self.datasets_train[1:]))
+            x_pairs, t_pairs = self.generate_dataset_pairs(forward_pairs, outer_iter_idx=outer_iter_idx)
+           
 
             if not (
                 skip_forward
@@ -175,7 +180,8 @@ class N_Bridges(IMF_DSBM):
                 print("Training FORWARD bridge")
 
                 direction_to_train = "forward"
-                x_pairs, t_pairs = self.generate_dataset_pairs(forward_pairs)
+
+
 
                 self.avg_loss, self.avg_grad , net_dict = self.train_one_direction(
                     direction=direction_to_train,
@@ -196,9 +202,8 @@ class N_Bridges(IMF_DSBM):
             print("Training BACKWARD bridge")
 
             direction_to_train = "backward"
-
-            x_pairs, t_pairs = self.generate_dataset_pairs(forward_pairs)
-
+           
+           
             self.avg_loss, self.avg_grad , net_dict = self.train_one_direction(
                 direction=direction_to_train,
                 x_pairs=x_pairs,
@@ -241,8 +246,11 @@ class N_Bridges(IMF_DSBM):
         z0_sampled = z0[idx]
 
         t_pairs = [dataset_train[min_idx].get_time(), dataset_train[max_idx].get_time()]
+
         if not one_bridge:
             num_steps *= len(dataset_train) - 1
+
+
 
         generated, time = inference_sample_sde(
             zstart=z0_sampled,
@@ -255,6 +263,8 @@ class N_Bridges(IMF_DSBM):
         )
 
         return generated, time
+
+
 
     def save_networks(self, net_dict, direction_tosample: str, outer_iter_idx: int):
         base_dir = os.path.join(self.args.experiment_dir, self.args.experiment_name)
@@ -357,6 +367,8 @@ class N_Bridges(IMF_DSBM):
                 num_steps=args.num_simulation_steps,
                 sigma=args.sigma,
             )
+
+
         else:
             generated, time = None, None
 

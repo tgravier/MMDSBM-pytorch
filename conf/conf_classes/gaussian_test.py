@@ -3,7 +3,11 @@ from datasets.datasets_registry import GaussianConfig, GaussianMixtureConfig
 
 
 from accelerate import Accelerator
-from datasets.datasets_registry import GaussianConfig, CircleConfig
+from datasets.datasets_registry import (
+    GaussianConfig,
+    CircleConfig,
+    PhateFromTrajectoryConfig,
+)
 
 
 # Commentary :
@@ -15,14 +19,14 @@ class ExperimentConfig:
         self.seed = 42
 
         # ───── Experiment Info
-        self.project_name = "DSBM_N_BRIDGES_02"
-        self.experiment_dir = "experiments"
-        self.experiment_name = "test_generated"
+        self.project_name = "DSBM_N_BRIDGES_DEBUG"
+        self.experiment_dir = "experiments_debug"
+        self.experiment_name = "debug_gaussian_01"
 
         # ───── Data Parameters
         self.dim = 2
-        self.batch_size = 256
-        self.n_distributions = 4
+        self.batch_size = 128
+        self.n_distributions = 2
 
         # ───── Dataset Configuration
         self.distributions = DistributionConfig(dim=self.dim)
@@ -30,21 +34,21 @@ class ExperimentConfig:
         # ───── Simulation Parameters
         
         self.first_coupling = "ind"
-        self.sigma = 0.4
-        self.num_simulation_steps = 160
-        self.nb_inner_opt_steps = 200
-        self.nb_outer_iterations = 10
+        self.sigma = 0.5
+        self.num_simulation_steps = 15
+        self.nb_inner_opt_steps = 1000
+        self.nb_outer_iterations = 20
         self.eps = 1e-4
 
 
         # ───── WARMUP Parameters
         self.warmup_epoch = 0  ## Warmup
-        self.warmup_nb_inner_opt_steps = 10
+        self.warmup_nb_inner_opt_steps = 5000
 
 
         # ───── Optimization
         self.lr = 2e-4
-        self.grad_clip = 0.5
+        self.grad_clip = 1
         self.optimizer_type = "adam"
         self.optimizer_params = {"betas": (0.9, 0.999), "weight_decay": 0.0}
 
@@ -62,7 +66,7 @@ class ExperimentConfig:
         self.plot_vis = True
         self.log_wandb_traj = True
         self.plot_vis_n_epoch = 1
-        self.num_sample_vis = 257
+        self.num_sample_vis = 500
         self.plot_traj = False
         self.number_traj = 20
 
@@ -96,44 +100,21 @@ class ExperimentConfig:
 
         # ───── Debug
 
-        self.debug = False
+        self.debug = True
 
-
-      
 
 class DistributionConfig:
-    def __init__(self, dim: int = 2, n_samples: int = 2000):
-        self.dim = dim  # In Experiment Config
-        self.n_samples = 10000
+    def __init__(self, dim: int = 2, n_samples: int = 1000):
+        self.dim = dim
+        self.n_samples = 2381
 
-        # ───── Define training distributions (3 Gaussians)
         self.distributions_train = [
             GaussianConfig(
-                time=0,
-                mean=[0, 1],
-                std=[1, 1],
-                n_samples=self.n_samples,
-                dim=self.dim,
+                mean = [0,0], std =[1,1], dim = 2, time = 0
             ),
             GaussianConfig(
-                time=1,
-                mean=[5, 5],
-                std=[1, 1],
-                n_samples=self.n_samples,
-                dim=self.dim,
+                mean = [5,5], std =[1,1], dim = 2, time = 1
             ),
-            GaussianConfig(
-                time=2,
-                mean=[0, 5],
-                std=[1, 1],
-                n_samples=self.n_samples,
-                dim=self.dim,
-            ),
-            GaussianConfig(
-                time=3,
-                mean=[5, -5],
-                std=[1, 1],
-                n_samples=self.n_samples,
-                dim=self.dim,
-            ),
+
+                    
         ]
