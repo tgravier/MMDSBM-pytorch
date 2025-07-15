@@ -3,7 +3,7 @@
 from bridge.nbridges import N_Bridges
 from utils.tracking_logger import WandbLogger
 from conf.conf_loader import load_config
-from bridge.models.networks import ScoreNetwork
+from bridge.models.networks import ScoreNetwork, ScoreNetworkResNet
 
 import torch
 import torch.nn as nn
@@ -29,6 +29,7 @@ class trainer_bridges(N_Bridges):
         self.instance_gpu_config()
 
         net_fwd, net_bwd = self.instance_network(
+            model_name = self.experiment_config.model_name,
             net_fwd_layers=self.experiment_config.net_fwd_layers,
             net_fwd_time_dim=self.experiment_config.net_fwd_time_dim,
             net_bwd_layers=self.experiment_config.net_bwd_layers,
@@ -70,8 +71,9 @@ class trainer_bridges(N_Bridges):
             self.experiment_config.previous_direction_to_train = "forward"  # default
 
     def instance_network(
-        self, net_fwd_layers, net_fwd_time_dim, net_bwd_layers, net_bwd_time_dim
-    ):
+        self, model_name, net_fwd_layers, net_fwd_time_dim, net_bwd_layers, net_bwd_time_dim
+    ):  
+        
         input_dim = self.experiment_config.dim
         max_time = max(
             distribution.time
@@ -79,22 +81,45 @@ class trainer_bridges(N_Bridges):
         )
 
         activation = nn.SiLU()
+        if model_name == "mlp":
 
-        net_fwd = ScoreNetwork(
-            input_dim=input_dim,
-            layers_widths=net_fwd_layers + [input_dim],
-            activation_fn=activation,
-            time_dim=net_fwd_time_dim,
-            max_time=max_time,
-        )
+            net_fwd = ScoreNetwork(
+                input_dim=input_dim,
+                layers_widths=net_fwd_layers + [input_dim],
+                activation_fn=activation,
+                time_dim=net_fwd_time_dim,
+                max_time=max_time,
+            )
 
-        net_bwd = ScoreNetwork(
-            input_dim=input_dim,
-            layers_widths=net_bwd_layers + [input_dim],
-            activation_fn=activation,
-            time_dim=net_bwd_time_dim,
-            max_time=max_time,
-        )
+            net_bwd = ScoreNetwork(
+                input_dim=input_dim,
+                layers_widths=net_bwd_layers + [input_dim],
+                activation_fn=activation,
+                time_dim=net_bwd_time_dim,
+                max_time=max_time,
+            )
+        elif model_name == "resnet":
+
+            net_fwd  = ScoreNetworkResNet(
+                input_dim=input_dim,
+                hidden_dim=128,
+                activation_fn=activation,
+                num_blocks=5,
+                time_dim=16, 
+                output_dim=input_dim
+            )
+
+            net_bwd  = ScoreNetworkResNet(
+                input_dim=input_dim,
+                hidden_dim=128,
+                num_blocks=5,
+                activation_fn=activation,
+                time_dim=16,
+                output_dim=input_dim,  
+                max_time=max_time,
+            )
+
+
 
         return net_fwd, net_bwd
 

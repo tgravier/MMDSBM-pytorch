@@ -1,5 +1,12 @@
 from accelerate import Accelerator
-from datasets.datasets_registry import GaussianConfig
+from datasets.datasets_registry import GaussianConfig, GaussianMixtureConfig, PhateFromTrajectoryConfig
+
+
+from accelerate import Accelerator
+from datasets.datasets_registry import GaussianConfig, CircleConfig
+
+
+# Commentary :
 
 
 class ExperimentConfig:
@@ -8,58 +15,54 @@ class ExperimentConfig:
         self.seed = 42
 
         # ───── Experiment Info
-        self.project_name = "DSBM_N_BRIDGES"
-        self.experiment_dir = "experiments_debug"
-        self.experiment_name = "gaussian_score_04"
+        self.project_name = "DSBM_N_BRIDGES_PHATE"
+        self.experiment_dir = "experiments"
+        self.experiment_name = "dim5_02"
 
         # ───── Data Parameters
-        self.dim = 2
+        self.dim = 5
         self.batch_size = 512
-        self.n_distributions = 4
+        self.n_distributions = 5
 
         # ───── Dataset Configuration
         self.distributions = DistributionConfig(dim=self.dim)
 
         # ───── Simulation Parameters
+
         self.first_coupling = "ind"
-        self.sigma = 1
+        self.sigma = 2
         self.num_simulation_steps = 80
-        self.nb_inner_opt_steps = 5000
-        self.nb_outer_iterations = 20
+        self.nb_inner_opt_steps = 10000
+        self.nb_outer_iterations = 100
         self.eps = 1e-3
 
         # Warmup epoch
 
         self.warmup = True
-        self.warmup_epoch =0
-        self.warmup_nb_inner_opt_steps = 8000
-
+        self.warmup_nb_inner_opt_steps = 20000
+        self.warmup_epoch = 0
         # ───── Optimization
-        self.lr = 1e-4
-        self.grad_clip = 1.0
+        self.lr = 2e-4
+        self.grad_clip = 200000
         self.optimizer_type = "adam"
         self.optimizer_params = {"betas": (0.9, 0.999), "weight_decay": 0.0}
 
+        # --- Network General
 
-        # ---- Network General
-
-        self.model_name = 'resnet'
+        self.model_name = "resnet"
 
         # ───── Network: Forward score model
-        self.net_fwd_layers = [128, 128]
-        self.net_fwd_time_dim = 64
+
+        self.net_fwd_layers = [256, 256,]
+        self.net_fwd_time_dim = 128
 
         # ───── Network: Backward score model
-        self.net_bwd_layers = [128, 128]
-        self.net_bwd_time_dim = 64
+        self.net_bwd_layers = [256, 256]
+        self.net_bwd_time_dim = 128
 
-        # ───── Logging
-        self.vis_every = 1
-
-        
         # ----- Inference
 
-        self.sigma_inference = 1
+        self.sigma_inference = 2
 
         # ───── Visualisation
         self.fps = 20
@@ -67,7 +70,7 @@ class ExperimentConfig:
         self.plot_vis = True
         self.log_wandb_traj = True
         self.plot_vis_n_epoch = 1
-        self.num_sample_vis = 1000
+        self.num_sample_vis = 512
         self.plot_traj = False
         self.number_traj = 20
 
@@ -103,45 +106,40 @@ class ExperimentConfig:
 
         # ───── Debug
 
-        self.debug = True
-
-
+        self.debug = False
 
 
 
 class DistributionConfig:
-    def __init__(self, dim: int = 2, n_samples: int = 2000):
-        self.dim = dim  # In Experiment Config
-        self.n_samples = 10000
+    def __init__(self, dim: int = 5, n_samples: int = 2381):
+        self.dim = dim
 
-        # ───── Define training distributions (3 Gaussians)
+
         self.distributions_train = [
-            GaussianConfig(
+            PhateFromTrajectoryConfig(
                 time=0,
-                mean=[5, 1],
-                std=[1, 1],
-                n_samples=self.n_samples,
-                dim=self.dim,
+                dim=5,
+                file_path="datasets/data/phate_dim5/pcs_label_0_dim_5.npz",
             ),
-            GaussianConfig(
+
+                        PhateFromTrajectoryConfig(
                 time=1,
-                mean=[9, 5],
-                std=[1, 1],
-                n_samples=self.n_samples,
-                dim=self.dim,
+                dim=5,
+                file_path="datasets/data/phate_dim5/pcs_label_1_dim_5.npz",
             ),
-            GaussianConfig(
+                        PhateFromTrajectoryConfig(
                 time=2,
-                mean=[5, 9],
-                std=[1, 1],
-                n_samples=self.n_samples,
-                dim=self.dim,
+                dim=5,
+                file_path="datasets/data/phate_dim5/pcs_label_2_dim_5.npz",
             ),
-            GaussianConfig(
+                        PhateFromTrajectoryConfig(
                 time=3,
-                mean=[1, 5],
-                std=[1, 1],
-                n_samples=self.n_samples,
-                dim=self.dim,
+                dim=5,
+                file_path="datasets/data/phate_dim5/pcs_label_3_dim_5.npz",
+            ),
+                        PhateFromTrajectoryConfig(
+                time=4,
+                dim=5,
+                file_path="datasets/data/phate_dim5/pcs_label_4_dim_5.npz",
             ),
         ]

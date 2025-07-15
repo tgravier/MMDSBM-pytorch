@@ -8,6 +8,7 @@ dependencies = [
     "accelerate>=1.7.0",
     "geomloss>=0.2.6",
     "ipykernel>=6.29.5",
+    "ipywidgets>=8.1.7",
     "matplotlib>=3.10.3",
     "numpy==1.26.4",
     "pandas>=2.3.0",
