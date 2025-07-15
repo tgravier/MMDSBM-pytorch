@@ -140,7 +140,7 @@ class N_Bridges(IMF_DSBM):
                 direction_to_train = "forward"
                 x_pairs, t_pairs = self.generate_dataset_pairs(forward_pairs)
 
-                loss_curve, net_dict = self.train_one_direction(
+                loss_curve, grad_curve, net_dict = self.train_one_direction(
                     direction=direction_to_train,
                     x_pairs=x_pairs,
                     t_pairs=t_pairs,
@@ -148,7 +148,7 @@ class N_Bridges(IMF_DSBM):
                 )
 
                 self.orchestrate_experiment(
-                    self.args, outer_iter_idx, direction_to_train, net_dict
+                    args=self.args, outer_iter_idx=outer_iter_idx, direction_to_train=direction_to_train, net_dict=net_dict, loss_curve=loss_curve, grad_curve=grad_curve
                 )
 
             else:
@@ -159,16 +159,17 @@ class N_Bridges(IMF_DSBM):
             direction_to_train = "backward"
 
             x_pairs, t_pairs = self.generate_dataset_pairs(forward_pairs)
-            loss_curve, net_dict = self.train_one_direction(
+            loss_curve, grad_curve, net_dict = self.train_one_direction(
                 direction=direction_to_train,
                 x_pairs=x_pairs,
                 t_pairs=t_pairs,
                 outer_iter_idx=outer_iter_idx,
             )
 
+
             self.orchestrate_experiment(
-                self.args, outer_iter_idx, direction_to_train, net_dict
-            )
+                    args=self.args, outer_iter_idx=outer_iter_idx, direction_to_train=direction_to_train, net_dict=net_dict, loss_curve=loss_curve, grad_curve=grad_curve
+                )
 
 
     def inference_test(
@@ -278,8 +279,23 @@ class N_Bridges(IMF_DSBM):
         return last_ckpt_path, archive_path
 
     def orchestrate_experiment(
-        self, args, outer_iter_idx, direction_to_train, net_dict
+        self, args, outer_iter_idx, direction_to_train, net_dict, loss_curve, grad_curve
     ):
+        
+
+
+        # ───── Log average loss and gradient per direction
+        self.tracking_logger.log(
+            {
+                f"loss/{direction_to_train}": float(np.mean(loss_curve)) if loss_curve else None,
+                f"grad/{direction_to_train}": float(np.mean(grad_curve)) if grad_curve else None,
+                "epoch": outer_iter_idx,
+            },
+            step=outer_iter_idx,
+        )
+
+
+
         # ───── Determine what should be executed this iteration
         do_plot = (
             args.plot_vis

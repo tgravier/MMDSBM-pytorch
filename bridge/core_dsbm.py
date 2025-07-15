@@ -59,12 +59,9 @@ class IMF_DSBM:
         # x_pairs shape (num_distrib, num_samples, time, dim)
 
         loss_curve = []
+        grad_curve = []
         # 0. generate initial and final points
-
-        dl = iter(
-            self.accelerator.prepare(
-                DataLoader(
-                    TensorDataset(
+        dataset = TensorDataset(
                         *self.generate_dataloaders(
                             args=self.args,
                             x_pairs=x_pairs,  # TODO give here x_pairs and time but x_pairs can be from different time_pairs
@@ -73,7 +70,12 @@ class IMF_DSBM:
                             outer_iter_idx=outer_iter_idx,
                             first_coupling=self.args.first_coupling,
                         )
-                    ),
+                    )
+        dl = iter(
+            self.accelerator.prepare(
+                DataLoader(
+                    dataset
+                    ,
                     batch_size=self.args.batch_size,
                     shuffle=True,
                     pin_memory=False,
@@ -81,6 +83,7 @@ class IMF_DSBM:
                 )
             )
         )
+        
 
         # at this step we have dataloader with initial point generate and real end point
         pbar = tqdm(
@@ -96,17 +99,8 @@ class IMF_DSBM:
             except StopIteration:
                 dl = iter(
                     self.accelerator.prepare(
-                        DataLoader(
-                            TensorDataset(
-                                *self.generate_dataloaders(
-                                    args=self.args,
-                                    x_pairs=x_pairs,
-                                    t_pairs=t_pairs,
-                                    direction_to_train=direction,
-                                    outer_iter_idx=outer_iter_idx,
-                                    first_coupling=self.args.first_coupling,
-                                )
-                            ),
+                        DataLoader(dataset
+                            ,
                             batch_size=self.args.batch_size,
                             shuffle=True,
                             pin_memory=False,
@@ -114,6 +108,7 @@ class IMF_DSBM:
                         )
                     )
                 )
+                z0, z1, t_tensor = next(dl)
 
             z_pairs = torch.stack([z0, z1], dim=1).to(self.device)
 
@@ -126,11 +121,26 @@ class IMF_DSBM:
 
             pred = self.net_dict[direction](x_bridge_t, t)
 
+
+
+
+
+
+
             # 4. compute loss, backward, and optim step
             loss = (target - pred).view(pred.shape[0], -1).abs().pow(2).sum(dim=1)
             loss = loss.mean()
 
             self.accelerator.backward(loss)
+
+            # Compute total gradient norm (L2 norm)
+            total_norm = 0.0
+            for p in self.net_dict[direction].parameters():
+                if p.grad is not None:
+                    param_norm = p.grad.data.norm(2)
+                    total_norm += param_norm.item() ** 2
+            total_norm = total_norm ** 0.5  # Final L2 norm of all gradients
+
             self.accelerator.clip_grad_norm_(
                 self.net_dict[direction].parameters(), self.args.grad_clip
             )
@@ -139,8 +149,9 @@ class IMF_DSBM:
 
             pbar.set_postfix(loss=loss.item())
             loss_curve.append(loss.item())
+            grad_curve.append(total_norm)
 
-        return loss_curve, {"forward": self.net_fwd, "backward": self.net_bwd}
+        return loss_curve, grad_curve, {"forward": self.net_fwd, "backward": self.net_bwd}
 
     @torch.inference_mode()
     def generate_dataloaders(
