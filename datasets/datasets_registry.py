@@ -9,8 +9,8 @@ from sklearn.datasets import make_s_curve
 # === Dataset Registry Core ===
 # ============================
 
-ARTIFICIAL_DATASETS = ["gaussian", "spiral", "moon", "circle", "gaussian_mixture", "s_curve"]
-REAL_DATASETS = ["mnist", "cifar10"]
+ARTIFICIAL_DATASETS = ["gaussian", "spiral", "moon", "circle", "gaussian_mixture", "s_curve",]
+REAL_DATASETS = ["mnist", "cifar10","phate_traj_dim2"]
 
 class DatasetConfig:
     def __init__(self, name: str, time: float, input_dim: Optional[int] = None, **params):
@@ -135,4 +135,24 @@ class SCurveConfig(DatasetConfig):
         super().__init__(
             "s_curve", time, input_dim=2,
             n_samples=n_samples, noise=noise
+        )
+
+class PhateFromTrajectoryConfig(DatasetConfig):
+    def __init__(self, time: float, dim: int = 2, file_path: Optional[str] = None): # WARNING, each file of the phate data need to be separe in pcs_label_{idx}.npz file not a single file, one file by timesteps
+        """
+        Configuration pour le dataset réel 'phate_from_trajectory'.
+
+        Args:
+            time (float): Temps associé (timestamp ou échelle).
+            embedding_dim (int): Dimension de l'espace d'embedding PHATE (par défaut 2).
+            file_path (str): Chemin vers le fichier .npz contenant les embeddings.
+        """
+        default_path = "datasets/data/phate_from_trajectory/eb_velocity_v5.npz"
+        path_to_use = file_path if file_path is not None else default_path
+
+        super().__init__(
+            name="phate_traj_dim2",
+            time=time,
+            input_dim=dim,
+            file_path=path_to_use
         )

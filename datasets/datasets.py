@@ -3,7 +3,8 @@ from torch.utils.data import Dataset
 from sklearn.datasets import make_moons, make_circles
 import numpy as np
 from sklearn.datasets import make_s_curve
-from datasets.datasets_registry import DatasetConfig
+from datasets.datasets_registry import DatasetConfig 
+import os
 
 # datasets/datasets.py
 
@@ -145,6 +146,32 @@ def load_dataset(config: DatasetConfig) -> TimedDataset:
             torch.tensor(X_2d, dtype=torch.float32),
             torch.tensor(y, dtype=torch.long),
             time,
+        )
+    
+    elif name == "phate_traj_dim2":
+        
+
+        path = params["file_path"]
+
+
+
+
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"Expected file '{path}' for time={time} not found.")
+
+        # Load the PHATE embedding
+        data_npz = np.load(path)
+        if "pcs" not in data_npz:
+            raise ValueError(f"File '{path}' must contain key 'pcs'.")
+
+        pcs = data_npz["pcs"]
+        n_samples = pcs.shape[0]
+        dummy_labels = np.zeros(n_samples, dtype=np.int64)  # Unused, but required by TimedDataset
+
+        return TimedDataset(
+            torch.tensor(pcs, dtype=torch.float32),
+            torch.tensor(dummy_labels, dtype=torch.long),
+            time
         )
 
 
