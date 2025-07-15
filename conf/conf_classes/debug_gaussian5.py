@@ -49,6 +49,10 @@ class ExperimentConfig:
         # ───── Logging
         self.vis_every = 1
 
+        
+        # ----- Inference
+
+        self.sigma_inference = 0
 
         # ───── Visualisation
         self.fps = 20

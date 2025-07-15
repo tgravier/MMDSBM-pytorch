@@ -88,6 +88,8 @@ class IMF_DSBM:
 
         if self.args.warmup  and outer_iter_idx == 0:
 
+            print(f"WARMUP STEP {direction}")
+
             nb_inner_opt_steps = self.args.warmup_nb_inner_opt_steps
 
             

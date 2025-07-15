@@ -17,7 +17,7 @@ class ExperimentConfig:
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES"
         self.experiment_dir = "experiments_debug"
-        self.experiment_name = "gaussian_test_commit_wass_finite_dataloader_02"
+        self.experiment_name = "gaussian_test_commit_sigma0_01"
 
         # ───── Data Parameters
         self.dim = 2
@@ -38,7 +38,8 @@ class ExperimentConfig:
 
         # Warmup epoch
 
-        self.warmup_epoch = 0
+        self.warmup = True
+        self.warmup_nb_inner_opt_steps = 10000
 
         # ───── Optimization
         self.lr = 1e-3
@@ -53,6 +54,10 @@ class ExperimentConfig:
         # ───── Network: Backward score model
         self.net_bwd_layers = [128, 128]
         self.net_bwd_time_dim = 64
+
+        # ----- Inference
+
+        self.sigma_inference = 0
 
         # ───── Visualisation
         self.fps = 20

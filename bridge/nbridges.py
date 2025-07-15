@@ -321,7 +321,7 @@ class N_Bridges(IMF_DSBM):
                 outer_iter_idx=outer_iter_idx,
                 num_samples=args.num_sample_vis,
                 num_steps=args.num_simulation_steps,
-                sigma=args.sigma,
+                sigma=args.sigma_inference,
             )
         else:
             generated, time = None, None
