@@ -83,11 +83,21 @@ class IMF_DSBM:
                 )
             )
         )
+
+        nb_inner_opt_steps = self.args.nb_inner_opt_steps
+
+        if self.args.warmup  and outer_iter_idx == 0:
+
+            nb_inner_opt_steps = self.args.warmup_nb_inner_opt_steps
+
+            
+
+
         
 
         # at this step we have dataloader with initial point generate and real end point
         pbar = tqdm(
-            range(self.args.nb_inner_opt_steps),
+            range(nb_inner_opt_steps),
             desc=f"{direction} | Outer {outer_iter_idx}",
         )
 

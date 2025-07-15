@@ -30,7 +30,7 @@ class ExperimentConfig:
 
         # Warmup epoch
 
-        self.warmup_epoch = 0
+        self.warmup = True
 
         # ───── Optimization
         self.lr = 1e-4

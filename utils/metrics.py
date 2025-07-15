@@ -27,7 +27,7 @@ def get_classic_metrics(data: Tensor) -> Tuple[Tensor, Tensor]:
 # ---------- Sliced Wasserstein Distance using POT ----------
 
 
-def compute_swd_pot(x: Tensor, y: Tensor, n_proj: int = 100) -> float:
+def compute_swd_pot(x: Tensor, y: Tensor, n_proj: int = 50) -> float:
     """
     Computes the sliced Wasserstein distance between two empirical distributions using POT.
 
@@ -52,7 +52,7 @@ def evaluate_swd_over_time(
     time: List[float],
     datasets_train: List,
     direction_tosample: str,
-    n_proj: int = 100,
+    n_proj: int = 50,
 ) -> List[Tuple[float, float]]:
     """
     Evaluates Sliced Wasserstein Distance (SWD) between generated samples and reference datasets.
