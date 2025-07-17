@@ -17,7 +17,7 @@ class ExperimentConfig:
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES_PHATE"
         self.experiment_dir = "experiments"
-        self.experiment_name = "dim2_04"
+        self.experiment_name = "dim2_norm_04"
 
         # ───── Data Parameters
         self.dim = 2
@@ -30,22 +30,26 @@ class ExperimentConfig:
         # ───── Simulation Parameters
 
         self.first_coupling = "ind"
-        self.sigma = 2
+        self.sigma = 0.7
         self.num_simulation_steps = 80
-        self.nb_inner_opt_steps = 50000
+        self.nb_inner_opt_steps = 10000
         self.nb_outer_iterations = 100
         self.eps = 1e-3
 
         # Warmup epoch
 
         self.warmup = True
-        self.warmup_nb_inner_opt_steps = 10000
+        self.warmup_nb_inner_opt_steps = 5000
         self.warmup_epoch = 0
         # ───── Optimization
         self.lr = 2e-4
-        self.grad_clip = 200000
+        self.grad_clip = 20
         self.optimizer_type = "adam"
         self.optimizer_params = {"betas": (0.9, 0.999), "weight_decay": 0.0}
+
+        # ----  Network : General
+
+        self.model_name = "resnet"
 
         # ───── Network: Forward score model
         self.net_fwd_layers = [256, 256,]
@@ -57,7 +61,7 @@ class ExperimentConfig:
 
         # ----- Inference
 
-        self.sigma_inference = 2
+        self.sigma_inference = 0.7
 
         # ───── Visualisation
         self.fps = 20

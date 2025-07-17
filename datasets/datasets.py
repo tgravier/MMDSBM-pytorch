@@ -5,6 +5,7 @@ import numpy as np
 from sklearn.datasets import make_s_curve
 from datasets.datasets_registry import DatasetConfig 
 import os
+from sklearn.preprocessing import StandardScaler
 
 # datasets/datasets.py
 

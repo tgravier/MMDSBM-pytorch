@@ -300,7 +300,6 @@ class N_Bridges(IMF_DSBM):
         do_plot = (
             args.plot_vis
             and args.dim == 2
-            and outer_iter_idx % args.plot_vis_n_epoch == 0
         )
         do_swd = args.display_swd and outer_iter_idx % args.display_swd_n_epoch == 0
         do_mmd = args.display_mmd and outer_iter_idx % args.display_mmd_n_epoch == 0
@@ -312,7 +311,7 @@ class N_Bridges(IMF_DSBM):
         )
 
         # ───── Only run inference if needed
-        if outer_iter_idx != 0 and (do_plot or do_swd or do_mmd or do_energy):
+        if (do_plot or do_swd or do_mmd or do_energy):
             generated, time = self.inference_test(
                 args=args,
                 direction_tosample=direction_to_train,
