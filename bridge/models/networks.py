@@ -102,10 +102,10 @@ class ResNetMLP(nn.Module):
         self,
         input_dim: int,
         time_dim: int,
-        hidden_dim: int = 128,
-        num_blocks: int = 4,
+        hidden_dim: int = 256,
+        num_blocks: int = 5,
         activation_fn=F.tanh,
-        output_dim: int = 2,
+        output_dim: int = 100,
     ):
         super().__init__()
         self.input_layer = nn.Linear(input_dim, hidden_dim)
@@ -146,3 +146,11 @@ class ScoreNetworkResNet(nn.Module):
     def forward(self, x_input: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         t_encoded = self.time_encoder(t)
         return self.net(x_input, t_encoded)
+
+
+def print_trainable_params(model, name_of_network: str):
+    total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    title = f" {name_of_network.strip()} "
+    print("=" * ((40 - len(title)) // 2) + title + "=" * ((40 - len(title) + 1) // 2))
+    print(f"Trainable parameters : {total_params:,}")
+    print("=" * 40)

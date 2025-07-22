@@ -3,7 +3,7 @@
 from bridge.nbridges import N_Bridges
 from utils.tracking_logger import WandbLogger
 from conf.conf_loader import load_config
-from bridge.models.networks import ScoreNetwork, ScoreNetworkResNet
+from bridge.models.networks import ScoreNetwork, ScoreNetworkResNet, print_trainable_params
 
 import torch
 import torch.nn as nn
@@ -118,6 +118,9 @@ class trainer_bridges(N_Bridges):
                 output_dim=input_dim,  
                 max_time=max_time,
             )
+
+        print_trainable_params(net_fwd, "net_fwd")
+        print_trainable_params(net_bwd, "net_bwd")
 
 
 
