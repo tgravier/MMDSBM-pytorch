@@ -9,8 +9,7 @@
             "console": "integratedTerminal",
             "args": [
                 "--config",
-                "debug_warmup"
-            ]
+                "phate_dim100"
         }
     ]
 }

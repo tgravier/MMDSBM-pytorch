@@ -42,8 +42,9 @@ def load_config(
         ExperimentConfigCls = getattr(module, "ExperimentConfig")
 
     # Initialize configs
-    distribution_cfg = DistributionConfigCls()
+
     experiment_cfg = ExperimentConfigCls()
+    distribution_cfg = experiment_cfg.distributions
     experiment_cfg.distribution_cfg = distribution_cfg
 
     exp_root = Path(experiment_cfg.experiment_dir)

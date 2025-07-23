@@ -147,8 +147,8 @@ class PhateFromTrajectoryConfig(DatasetConfig):
             embedding_dim (int): Dimension de l'espace d'embedding PHATE (par défaut 2).
             file_path (str): Chemin vers le fichier .npz contenant les embeddings.
         """
-        default_path = "datasets/data/phate_from_trajectory/eb_velocity_v5.npz"
-        path_to_use = file_path if file_path is not None else default_path
+
+        path_to_use = file_path 
 
         super().__init__(
             name="phate_traj_dim2",

@@ -152,7 +152,10 @@ def load_dataset(config: DatasetConfig) -> TimedDataset:
     elif name == "phate_traj_dim2":
         
 
+        ## Standart scaler precendently for this dataset, I save the data in scaler.pkl
+
         path = params["file_path"]
+        dim = dim
 
 
 
@@ -165,7 +168,7 @@ def load_dataset(config: DatasetConfig) -> TimedDataset:
         if "pcs" not in data_npz:
             raise ValueError(f"File '{path}' must contain key 'pcs'.")
 
-        pcs = data_npz["pcs"]
+        pcs = data_npz["pcs"][:, dim]
         n_samples = pcs.shape[0]
         dummy_labels = np.zeros(n_samples, dtype=np.int64)  # Unused, but required by TimedDataset
 

@@ -16,12 +16,12 @@ class ExperimentConfig:
 
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES_PHATE"
-        self.experiment_dir = "experiments"
-        self.experiment_name = "dim100_norm_10"
+        self.experiment_dir = "experiments_debug"
+        self.experiment_name = "debug_phatee_01"
 
         # ───── Data Parameters
-        self.dim = 100
-        self.batch_size = 512
+        self.dim = 6
+        self.batch_size = 1024
         self.n_distributions = 5
 
         # ───── Dataset Configuration
@@ -30,7 +30,7 @@ class ExperimentConfig:
         # ───── Simulation Parameters
 
         self.first_coupling = "ind"
-        self.sigma = 1.5
+        self.sigma = 0.1
         self.num_simulation_steps = 15
         self.nb_inner_opt_steps = 10000
         self.nb_outer_iterations = 100
@@ -39,7 +39,7 @@ class ExperimentConfig:
         # Warmup epoch
 
         self.warmup = True
-        self.warmup_nb_inner_opt_steps = 1000000
+        self.warmup_nb_inner_opt_steps = 10000
         self.warmup_epoch = 0
         # ───── Optimization
         self.lr = 2e-4
@@ -62,7 +62,7 @@ class ExperimentConfig:
 
         # ----- Inference
 
-        self.sigma_inference = 1.5
+        self.sigma_inference = 0.1
 
 
         # ───── Visualisation
@@ -71,7 +71,7 @@ class ExperimentConfig:
         self.plot_vis = True
         self.log_wandb_traj = True
         self.plot_vis_n_epoch = 1
-        self.num_sample_vis = 512
+        self.num_sample_vis = 1024
         self.plot_traj = False
         self.number_traj = 20
 
@@ -107,12 +107,12 @@ class ExperimentConfig:
 
         # ───── Debug
 
-        self.debug = False
+        self.debug = True
 
 
 
 class DistributionConfig:
-    def __init__(self, dim: int = 100, n_samples: int = 2381):
+    def __init__(self, dim: int = 105, n_samples: int = 2381):
         self.dim = dim
 
 
@@ -120,27 +120,27 @@ class DistributionConfig:
             PhateFromTrajectoryConfig(
                 time=0,
                 dim=dim,
-                file_path="datasets/data/phate_dim100/pcs_label_0_dim_100.npz",
+                file_path="datasets/data/phate_multi_dim/pcs_label_0.npz",
             ),
 
                         PhateFromTrajectoryConfig(
                 time=1,
                 dim=dim,
-                file_path="datasets/data/phate_dim100/pcs_label_1_dim_100.npz",
+                file_path="datasets/data/phate_multi_dim/pcs_label_1.npz",
             ),
                         PhateFromTrajectoryConfig(
                 time=2,
                 dim=dim,
-                file_path="datasets/data/phate_dim100/pcs_label_2_dim_100.npz",
+                file_path="datasets/data/phate_multi_dim/pcs_label_2.npz",
             ),
                         PhateFromTrajectoryConfig(
                 time=3,
                 dim=dim,
-                file_path="datasets/data/phate_dim100/pcs_label_3_dim_100.npz",
+                file_path="datasets/data/phate_multi_dim/pcs_label_3.npz",
             ),
                         PhateFromTrajectoryConfig(
                 time=4,
                 dim=dim,
-                file_path="datasets/data/phate_dim100/pcs_label_4_dim_100.npz",
+                file_path="datasets/data/phate_multi_dim/pcs_label_4.npz",
             ),
         ]
