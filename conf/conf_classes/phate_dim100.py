@@ -17,7 +17,7 @@ class ExperimentConfig:
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES_PHATE"
         self.experiment_dir = "experiments"
-        self.experiment_name = "s2dim_100_02"
+        self.experiment_name = "s3dim_100_01"
 
         # ───── Data Parameters
         self.dim = 100
@@ -32,14 +32,14 @@ class ExperimentConfig:
         self.first_coupling = "ind"
         self.sigma = 1.5
         self.num_simulation_steps = 15
-        self.nb_inner_opt_steps = 10000
+        self.nb_inner_opt_steps = 5000
         self.nb_outer_iterations = 100
         self.eps = 1e-3
 
         # Warmup epoch
 
         self.warmup = True
-        self.warmup_nb_inner_opt_steps = 20000
+        self.warmup_nb_inner_opt_steps = 10000
         self.warmup_epoch = 0
         # ───── Optimization
         self.lr = 2e-4
