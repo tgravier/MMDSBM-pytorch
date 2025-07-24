@@ -18,7 +18,7 @@ class ExperimentConfig:
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES_DEBUG"
         self.experiment_dir = "experiments_debug"
-        self.experiment_name = "debug_deseq_commit_02"
+        self.experiment_name = "debug_deseq_commit_03"
 
         # ───── Data Parameters
         self.dim = 2
@@ -31,7 +31,7 @@ class ExperimentConfig:
         # ───── Simulation Parameters
 
         self.first_coupling = "ind"
-        self.sigma = 0.5
+        self.sigma = 1
         self.num_simulation_steps = 15
         self.nb_inner_opt_steps = 1000
         self.nb_outer_iterations = 100
@@ -63,7 +63,7 @@ class ExperimentConfig:
 
         # ----- Inference
 
-        self.sigma_inference = 0.5
+        self.sigma_inference = 1
         self.num_sample_metric = 1000
 
         # ───── Visualisation

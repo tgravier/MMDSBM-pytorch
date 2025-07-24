@@ -134,6 +134,10 @@ def inference_sample_sde(
 
     dt = abs(t_max - t_min) / N
 
+    sign = 1
+    if direction_tosample == "backward": 
+        sign = -1
+
     z = zstart.detach().clone()
 
     score = net_dict[direction_tosample].eval()
@@ -147,7 +151,8 @@ def inference_sample_sde(
     for i in range(N-1): #TODO cf function train for sample
         t = torch.full((batchsize, 1), float(ts[i]), device=device)
 
-        t_list.append(ts[i] + dt)
+        t_list.append(ts[i] + dt*sign)
+        
 
         pred = score(z, t)
 
