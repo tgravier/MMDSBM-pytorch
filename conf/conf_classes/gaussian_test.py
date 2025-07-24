@@ -16,9 +16,9 @@ class ExperimentConfig:
         self.seed = 42
 
         # ───── Experiment Info
-        self.project_name = "DSBM_N_BRIDGES_PHATE"
+        self.project_name = "DSBM_N_BRIDGES_DEBUG"
         self.experiment_dir = "experiments_debug"
-        self.experiment_name = "debug_deseq_commit_01"
+        self.experiment_name = "debug_deseq_commit_02"
 
         # ───── Data Parameters
         self.dim = 2
@@ -127,7 +127,7 @@ class DistributionConfig:
                 time=0,
                 mean = [0,0],
                 std = [1,1],
-                n_samples = self.n_samples +4,
+                n_samples = self.n_samples ,
                 dim=2,),
 
                 GaussianConfig(

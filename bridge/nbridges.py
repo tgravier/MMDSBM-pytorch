@@ -138,7 +138,7 @@ class N_Bridges(IMF_DSBM):
         # all_right_of_pairs = torch.stack(all_right_of_pairs)
         # # (n_times-1, nb_pairs, data_dim)
 
-        x_pairs = torch.stack([all_left_of_pairs, all_right_of_pairs], dim=2)
+        x_pairs = torch.stack([all_left_of_pairs, all_right_of_pairs], dim=1)
         # (n_times - 1, nb_pairs, 2, data_dim)
         x_pairs = x_pairs.reshape(-1, 2, dim) #dim extract from x0 at the beginning of this function
         # ((n_times - 1) * nb_pairs, 2, data_dim)
