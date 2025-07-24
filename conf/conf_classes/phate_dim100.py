@@ -16,12 +16,12 @@ class ExperimentConfig:
 
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES_PHATE"
-        self.experiment_dir = "experiments_debug"
-        self.experiment_name = "debug_phatee_01"
+        self.experiment_dir = "experiments"
+        self.experiment_name = "s2dim_100_02"
 
         # ───── Data Parameters
         self.dim = 100
-        self.batch_size = 1024
+        self.batch_size = 512
         self.n_distributions = 5
 
         # ───── Dataset Configuration
@@ -30,16 +30,16 @@ class ExperimentConfig:
         # ───── Simulation Parameters
 
         self.first_coupling = "ind"
-        self.sigma = 0.1
+        self.sigma = 1.5
         self.num_simulation_steps = 15
-        self.nb_inner_opt_steps = 100
+        self.nb_inner_opt_steps = 10000
         self.nb_outer_iterations = 100
         self.eps = 1e-3
 
         # Warmup epoch
 
         self.warmup = True
-        self.warmup_nb_inner_opt_steps = 100
+        self.warmup_nb_inner_opt_steps = 20000
         self.warmup_epoch = 0
         # ───── Optimization
         self.lr = 2e-4
@@ -53,17 +53,17 @@ class ExperimentConfig:
 
         # ───── Network: Forward score model
 
-        self.net_fwd_layers = [256, 256,]
+        self.net_fwd_layers = [512, 512,]
         self.net_fwd_time_dim = 128
 
         # ───── Network: Backward score model
-        self.net_bwd_layers = [256, 256,]
+        self.net_bwd_layers = [512, 512,]
         self.net_bwd_time_dim = 128
 
         # ----- Inference
 
-        self.sigma_inference = 0.1
-
+        self.sigma_inference = 1.5
+        self.num_sample_metric = 1000
 
         # ───── Visualisation
         self.fps = 20
@@ -107,7 +107,7 @@ class ExperimentConfig:
 
         # ───── Debug
 
-        self.debug = True
+        self.debug = False
 
 
 

@@ -125,9 +125,9 @@ class N_Bridges(IMF_DSBM):
             # times
             t_left = time_dataset_init[bridge_idx].get_time()
             t_right = time_dataset_target[bridge_idx].get_time()
-            t_left = torch.full((nb_pairs,), t_left)
-            t_right = torch.full((nb_pairs,), t_right)
-            times = torch.stack([t_left, t_right])  # (nb_pairs, 2)
+            t_left = torch.full((nb_pairs,), t_left).to(self.args.accelerator.device)
+            t_right = torch.full((nb_pairs,), t_right).to(self.args.accelerator.device)
+            times = torch.stack([t_left, t_right], dim = 1)  # (nb_pairs, 2)
             all_times.append(times)
 
         all_left_of_pairs = torch.cat(all_left_of_pairs)
@@ -143,8 +143,8 @@ class N_Bridges(IMF_DSBM):
         x_pairs = x_pairs.reshape(-1, 2, dim) #dim extract from x0 at the beginning of this function
         # ((n_times - 1) * nb_pairs, 2, data_dim)
 
-        all_times = torch.cat(all_times, dim=1)  # ((n_times - 1) * nb_pairs, 2)
-        all_times = all_times.reshape(-1, 2) # (nb_pairs, 2)
+        all_times = torch.cat(all_times, dim=0)  # ((n_times - 1) * nb_pairs, 2)
+
 
         return x_pairs, all_times
 
@@ -236,6 +236,8 @@ class N_Bridges(IMF_DSBM):
             .get_all()
             .to(device)
         )
+
+        
         idx = torch.randint(0, z0.shape[0], (num_samples,))
         z0_sampled = z0[idx]
 
@@ -352,7 +354,7 @@ class N_Bridges(IMF_DSBM):
                 net_dict=net_dict,
                 dataset_train=self.datasets_train,
                 outer_iter_idx=outer_iter_idx,
-                num_samples=args.num_sample_vis,
+                num_samples=args.num_sample_metric,
                 num_steps=args.num_simulation_steps,
                 sigma=args.sigma_inference,
             )
