@@ -15,11 +15,10 @@ from sklearn.preprocessing import StandardScaler
 
 
 class TimedDataset(Dataset):
-    def __init__(self, data: torch.Tensor, labels: torch.Tensor, time: float):
+    def __init__(self, data: torch.Tensor, time: float):
         if not isinstance(time, (float, int)):
             raise TypeError(f"'time' must be a float or int, got {type(time)}")
         self.data = data
-        self.labels = labels
         self.time = float(time)
 
     def __len__(self):
@@ -67,7 +66,7 @@ def load_dataset(config: DatasetConfig) -> TimedDataset:
         labels = np.zeros(n)
         return TimedDataset(
             torch.tensor(data, dtype=torch.float32),
-            torch.tensor(labels, dtype=torch.long),
+
             time,
         )
 
@@ -85,7 +84,7 @@ def load_dataset(config: DatasetConfig) -> TimedDataset:
         y = np.zeros(n)
         return TimedDataset(
             torch.tensor(X, dtype=torch.float32),
-            torch.tensor(y, dtype=torch.long),
+
             time,
         )
 
@@ -93,7 +92,7 @@ def load_dataset(config: DatasetConfig) -> TimedDataset:
         X, y = make_moons(n_samples=n, noise=params.get("noise", 0.1))
         return TimedDataset(
             torch.tensor(X, dtype=torch.float32),
-            torch.tensor(y, dtype=torch.long),
+
             time,
         )
     
@@ -118,18 +117,12 @@ def load_dataset(config: DatasetConfig) -> TimedDataset:
 
 
         data = np.zeros((n, dim), dtype=np.float32)
-        labels = np.zeros(n, dtype=np.int64)
 
-        for i in range(k):
-            idx = component_indices == i
-            n_i = np.sum(idx)
-            if n_i > 0:
-                data[idx] = np.random.normal(loc=means[i], scale=stds[i], size=(n_i, dim))
-                labels[idx] = i
+
 
         return TimedDataset(
             torch.tensor(data, dtype=torch.float32),
-            torch.tensor(labels, dtype=torch.long),
+
             time,
         )
     
@@ -141,18 +134,18 @@ def load_dataset(config: DatasetConfig) -> TimedDataset:
 
         # On garde uniquement les colonnes x et z pour rester en 2D
         X_2d = X[:, [0, 2]]
-        y = np.zeros(n)
+
 
         return TimedDataset(
             torch.tensor(X_2d, dtype=torch.float32),
-            torch.tensor(y, dtype=torch.long),
+
             time,
         )
     
     elif name == "phate_traj_dim2":
         
 
-        ## Standart scaler precendently for this dataset, I save the data in scaler.pkl
+        ## Standart scaler use for preprecocess this dataset, I save the data in scaler.pkl
 
         path = params["file_path"]
         dim = dim
@@ -168,13 +161,11 @@ def load_dataset(config: DatasetConfig) -> TimedDataset:
         if "pcs" not in data_npz:
             raise ValueError(f"File '{path}' must contain key 'pcs'.")
 
-        pcs = data_npz["pcs"][:, dim]
-        n_samples = pcs.shape[0]
-        dummy_labels = np.zeros(n_samples, dtype=np.int64)  # Unused, but required by TimedDataset
+        pcs = data_npz["pcs"][:, :dim]
 
         return TimedDataset(
             torch.tensor(pcs, dtype=torch.float32),
-            torch.tensor(dummy_labels, dtype=torch.long),
+            
             time
         )
 

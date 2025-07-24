@@ -20,7 +20,7 @@ class ExperimentConfig:
         self.experiment_name = "debug_phatee_01"
 
         # ───── Data Parameters
-        self.dim = 6
+        self.dim = 100
         self.batch_size = 1024
         self.n_distributions = 5
 
@@ -32,14 +32,14 @@ class ExperimentConfig:
         self.first_coupling = "ind"
         self.sigma = 0.1
         self.num_simulation_steps = 15
-        self.nb_inner_opt_steps = 10000
+        self.nb_inner_opt_steps = 100
         self.nb_outer_iterations = 100
         self.eps = 1e-3
 
         # Warmup epoch
 
         self.warmup = True
-        self.warmup_nb_inner_opt_steps = 10000
+        self.warmup_nb_inner_opt_steps = 100
         self.warmup_epoch = 0
         # ───── Optimization
         self.lr = 2e-4
@@ -112,7 +112,7 @@ class ExperimentConfig:
 
 
 class DistributionConfig:
-    def __init__(self, dim: int = 105, n_samples: int = 2381):
+    def __init__(self, dim:int, n_samples: int = 2381):
         self.dim = dim
 
 

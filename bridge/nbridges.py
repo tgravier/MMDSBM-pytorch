@@ -93,30 +93,60 @@ class N_Bridges(IMF_DSBM):
         time_dataset_init = [pair[0] for pair in forward_pairs]
         time_dataset_target = [pair[1] for pair in forward_pairs]
 
-        n_samples = time_dataset_init[0].get_all().shape[0]
 
-        x0 = torch.stack(
-            [d.get_all().to(self.args.accelerator.device) for d in time_dataset_init]
-        )
-        x1 = torch.stack(
-            [d.get_all().to(self.args.accelerator.device) for d in time_dataset_target]
-        )
+        x0 = [d.get_all().to(self.args.accelerator.device) for d in time_dataset_init] # (n_times - 1, n_points, data_dim)
+            
+        
+        x1 =  [d.get_all().to(self.args.accelerator.device) for d in time_dataset_target]  # (n_times - 1, n_points, data_dim)
+        
+        dim = x0[0].size()[-1]
+        
 
-        x_pairs = torch.stack([x0, x1], dim=2).reshape(-1, 2, x0.shape[-1])
+        assert len(x0) == len(x1), f"{len(x0)} != {len(x1)}"
 
-        t_pairs_init = torch.tensor(
-            [d.get_time() for d in time_dataset_init],
-            device=self.args.accelerator.device,
-        )
-        t_pairs_target = torch.tensor(
-            [d.get_time() for d in time_dataset_target],
-            device=self.args.accelerator.device,
-        )
+        all_left_of_pairs = []
+        all_right_of_pairs = []
+        all_times = []
 
-        t_pairs = torch.stack([t_pairs_init, t_pairs_target], dim=1)
-        t_pairs = t_pairs.repeat_interleave(n_samples, dim=0)
+        for bridge_idx in range(len(x0)):
+            nb_points_left = len(x0[bridge_idx])
+            nb_points_right = len(x1[bridge_idx])
+            nb_pairs = max(nb_points_left, nb_points_right)
 
-        return x_pairs, t_pairs
+            # sample with replacement in left marginal
+            pairs_left_idx = torch.randint(nb_points_left, (nb_pairs,))
+            pairs_left = x0[bridge_idx][pairs_left_idx]  # (nb_pairs, data_dim)
+            all_left_of_pairs.append(pairs_left)
+            # sample with replacement in right marginal
+            pairs_right_idx = torch.randint(nb_points_right, (nb_pairs,))
+            pairs_right = x1[bridge_idx][pairs_right_idx]  # (nb_pairs, data_dim)
+            all_right_of_pairs.append(pairs_right)
+
+            # times
+            t_left = time_dataset_init[bridge_idx].get_time()
+            t_right = time_dataset_target[bridge_idx].get_time()
+            t_left = torch.full((nb_pairs,), t_left)
+            t_right = torch.full((nb_pairs,), t_right)
+            times = torch.stack([t_left, t_right])  # (nb_pairs, 2)
+            all_times.append(times)
+
+        all_left_of_pairs = torch.cat(all_left_of_pairs)
+        all_right_of_pairs = torch.cat(all_right_of_pairs)
+
+        # all_left_of_pairs = torch.stack(all_left_of_pairs)
+        # # (n_times-1, nb_pairs, data_dim)
+        # all_right_of_pairs = torch.stack(all_right_of_pairs)
+        # # (n_times-1, nb_pairs, data_dim)
+
+        x_pairs = torch.stack([all_left_of_pairs, all_right_of_pairs], dim=2)
+        # (n_times - 1, nb_pairs, 2, data_dim)
+        x_pairs = x_pairs.reshape(-1, 2, dim) #dim extract from x0 at the beginning of this function
+        # ((n_times - 1) * nb_pairs, 2, data_dim)
+
+        all_times = torch.cat(all_times, dim=1)  # ((n_times - 1) * nb_pairs, 2)
+        all_times = all_times.reshape(-1, 2) # (nb_pairs, 2)
+
+        return x_pairs, all_times
 
     def train(self):
         skip_forward = False
@@ -148,7 +178,12 @@ class N_Bridges(IMF_DSBM):
                 )
 
                 self.orchestrate_experiment(
-                    args=self.args, outer_iter_idx=outer_iter_idx, direction_to_train=direction_to_train, net_dict=net_dict, loss_curve=loss_curve, grad_curve=grad_curve
+                    args=self.args,
+                    outer_iter_idx=outer_iter_idx,
+                    direction_to_train=direction_to_train,
+                    net_dict=net_dict,
+                    loss_curve=loss_curve,
+                    grad_curve=grad_curve,
                 )
 
             else:
@@ -166,11 +201,14 @@ class N_Bridges(IMF_DSBM):
                 outer_iter_idx=outer_iter_idx,
             )
 
-
             self.orchestrate_experiment(
-                    args=self.args, outer_iter_idx=outer_iter_idx, direction_to_train=direction_to_train, net_dict=net_dict, loss_curve=loss_curve, grad_curve=grad_curve
-                )
-
+                args=self.args,
+                outer_iter_idx=outer_iter_idx,
+                direction_to_train=direction_to_train,
+                net_dict=net_dict,
+                loss_curve=loss_curve,
+                grad_curve=grad_curve,
+            )
 
     def inference_test(
         self,
@@ -281,26 +319,22 @@ class N_Bridges(IMF_DSBM):
     def orchestrate_experiment(
         self, args, outer_iter_idx, direction_to_train, net_dict, loss_curve, grad_curve
     ):
-        
-
-
         # ───── Log average loss and gradient per direction
         self.tracking_logger.log(
             {
-                f"loss/{direction_to_train}": float(np.mean(loss_curve)) if loss_curve else None,
-                f"grad/{direction_to_train}": float(np.mean(grad_curve)) if grad_curve else None,
+                f"loss/{direction_to_train}": float(np.mean(loss_curve))
+                if loss_curve
+                else None,
+                f"grad/{direction_to_train}": float(np.mean(grad_curve))
+                if grad_curve
+                else None,
                 "epoch": outer_iter_idx,
             },
             step=outer_iter_idx,
         )
 
-
-
         # ───── Determine what should be executed this iteration
-        do_plot = (
-            args.plot_vis
-            and args.dim == 2
-        )
+        do_plot = args.plot_vis and args.dim == 2
         do_swd = args.display_swd and outer_iter_idx % args.display_swd_n_epoch == 0
         do_mmd = args.display_mmd and outer_iter_idx % args.display_mmd_n_epoch == 0
         do_energy = (
@@ -311,7 +345,7 @@ class N_Bridges(IMF_DSBM):
         )
 
         # ───── Only run inference if needed
-        if (do_plot or do_swd or do_mmd or do_energy):
+        if do_plot or do_swd or do_mmd or do_energy:
             generated, time = self.inference_test(
                 args=args,
                 direction_tosample=direction_to_train,
@@ -362,8 +396,11 @@ class N_Bridges(IMF_DSBM):
                 print(f"[SWD @ t={t:.2f}] = {swd:.4f}")
                 if args.log_wandb_swd:
                     self.tracking_logger.log(
-                        {f"swd/{direction_to_train}/t={t:.2f}": swd, "epoch": outer_iter_idx},
-                        step=outer_iter_idx
+                        {
+                            f"swd/{direction_to_train}/t={t:.2f}": swd,
+                            "epoch": outer_iter_idx,
+                        },
+                        step=outer_iter_idx,
                     )
 
             if args.dim <= 3:
@@ -377,8 +414,11 @@ class N_Bridges(IMF_DSBM):
                     print(f"[WD @ t={t:.2f}] = {wd:.4f}")
                     if args.log_wandb_swd:
                         self.tracking_logger.log(
-                            {f"wd/{direction_to_train}/t={t:.2f}": wd, "epoch": outer_iter_idx},
-                            step=outer_iter_idx
+                            {
+                                f"wd/{direction_to_train}/t={t:.2f}": wd,
+                                "epoch": outer_iter_idx,
+                            },
+                            step=outer_iter_idx,
                         )
 
         # ───── MMD
@@ -394,8 +434,11 @@ class N_Bridges(IMF_DSBM):
                 print(f"[MMD @ t={t:.2f}] = {mmd:.4f}")
                 if args.log_wandb_mmd:
                     self.tracking_logger.log(
-                        {f"mmd/{direction_to_train}/t={t:.2f}": mmd, "epoch": outer_iter_idx},
-                        step=outer_iter_idx
+                        {
+                            f"mmd/{direction_to_train}/t={t:.2f}": mmd,
+                            "epoch": outer_iter_idx,
+                        },
+                        step=outer_iter_idx,
                     )
 
         # ───── Energy
@@ -408,8 +451,11 @@ class N_Bridges(IMF_DSBM):
                 print(f"[ENERGY @ t={t:.2f}] = {energy:.4f}")
                 if args.log_wandb_energy:
                     self.tracking_logger.log(
-                        {f"energy/{direction_to_train}/t={t:.2f}": energy, "epoch": outer_iter_idx},
-                        step=outer_iter_idx
+                        {
+                            f"energy/{direction_to_train}/t={t:.2f}": energy,
+                            "epoch": outer_iter_idx,
+                        },
+                        step=outer_iter_idx,
                     )
 
         # ───── Save networks
