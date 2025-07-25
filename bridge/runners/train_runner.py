@@ -4,6 +4,7 @@ from bridge.nbridges import N_Bridges
 from utils.tracking_logger import WandbLogger
 from conf.conf_loader import load_config
 from bridge.models.networks import ScoreNetwork, ScoreNetworkResNet, print_trainable_params
+from bridge.runners.ema import EMA
 
 import torch
 import torch.nn as nn
@@ -36,12 +37,20 @@ class trainer_bridges(N_Bridges):
             net_bwd_time_dim=self.experiment_config.net_bwd_time_dim,
         )
 
-        # Stockage pour le chargement des checkpoints
+       
         self.net_fwd = net_fwd
         self.net_bwd = net_bwd
 
+
+
+        if self.experiment_config.ema:
+
+            self.net_fwd_ema, self.net_bwd_ema = self.instance_ema_config()
+
         optimizer = self.instance_optimizer(net_fwd, net_bwd)
         self.optimizer = optimizer
+
+        
 
         # === Initialiser les flags pour la reprise
         self.set_resume_flags()
@@ -51,6 +60,8 @@ class trainer_bridges(N_Bridges):
             args=self.experiment_config,
             net_fwd=net_fwd,
             net_bwd=net_bwd,
+            net_fwd_ema = self.net_fwd_ema,
+            net_bwd_ema = self.net_bwd_ema,
             optimizer=optimizer,
             n_distribution=self.experiment_config.n_distributions,
             distributions_train=self.distribution_config.distributions_train,
@@ -148,6 +159,13 @@ class trainer_bridges(N_Bridges):
         gpu_id = self.experiment_config.gpu_id
         os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
         print("Using device:", self.experiment_config.accelerator.device)
+    
+    def instance_ema_config(self):
+
+        net_fwd_ema = EMA(self.net_fwd, decay = self.experiment_config.decay_ema)
+        net_bwd_ema = EMA(self.net_fwd, decay = self.experiment_config.decay_ema)
+
+        return net_fwd_ema, net_bwd_ema
 
     def launch_experiment(self):
         super().train()
@@ -233,3 +251,4 @@ class trainer_bridges(N_Bridges):
 
         # Start training loop
         self.launch_experiment()
+

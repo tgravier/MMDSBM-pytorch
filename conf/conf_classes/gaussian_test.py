@@ -18,7 +18,7 @@ class ExperimentConfig:
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES_DEBUG"
         self.experiment_dir = "experiments_debug"
-        self.experiment_name = "debug_deseq_commit_03"
+        self.experiment_name = "debug_ema_02"
 
         # ───── Data Parameters
         self.dim = 2
@@ -36,6 +36,11 @@ class ExperimentConfig:
         self.nb_inner_opt_steps = 1000
         self.nb_outer_iterations = 100
         self.eps = 1e-3
+
+        # ───── EMA Parameters
+
+        self.ema = True
+        self.decay_ema = 0.999
 
         # Warmup epoch
 

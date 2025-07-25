@@ -29,6 +29,8 @@ class N_Bridges(IMF_DSBM):
         args,
         net_fwd,
         net_bwd,
+        net_fwd_ema,
+        net_bwd_ema,
         optimizer,
         tracking_logger,
         n_distribution: int,
@@ -42,9 +44,15 @@ class N_Bridges(IMF_DSBM):
             optimizer=optimizer,
             net_fwd=net_fwd,
             net_bwd=net_bwd,
+            net_fwd_ema = net_fwd_ema,
+            net_bwd_ema = net_bwd_ema,
             sig=args.sigma,
             eps=args.eps,
         )
+
+        self.net_fwd_ema = net_fwd_ema
+        self.net_bwd_ema = net_bwd_ema
+
         self.tracking_logger = tracking_logger
 
         self._validate_config_time_unique(distributions_train, "train")
@@ -170,7 +178,7 @@ class N_Bridges(IMF_DSBM):
                 direction_to_train = "forward"
                 x_pairs, t_pairs = self.generate_dataset_pairs(forward_pairs)
 
-                loss_curve, grad_curve, net_dict = self.train_one_direction(
+                loss_curve, grad_curve, net_dict, ema_dict = self.train_one_direction(
                     direction=direction_to_train,
                     x_pairs=x_pairs,
                     t_pairs=t_pairs,
@@ -181,7 +189,7 @@ class N_Bridges(IMF_DSBM):
                     args=self.args,
                     outer_iter_idx=outer_iter_idx,
                     direction_to_train=direction_to_train,
-                    net_dict=net_dict,
+                    net_dict=ema_dict,
                     loss_curve=loss_curve,
                     grad_curve=grad_curve,
                 )
@@ -194,7 +202,7 @@ class N_Bridges(IMF_DSBM):
             direction_to_train = "backward"
 
             x_pairs, t_pairs = self.generate_dataset_pairs(forward_pairs)
-            loss_curve, grad_curve, net_dict = self.train_one_direction(
+            loss_curve, grad_curve, net_dict, ema_dict = self.train_one_direction(
                 direction=direction_to_train,
                 x_pairs=x_pairs,
                 t_pairs=t_pairs,
@@ -205,7 +213,7 @@ class N_Bridges(IMF_DSBM):
                 args=self.args,
                 outer_iter_idx=outer_iter_idx,
                 direction_to_train=direction_to_train,
-                net_dict=net_dict,
+                net_dict=ema_dict,
                 loss_curve=loss_curve,
                 grad_curve=grad_curve,
             )

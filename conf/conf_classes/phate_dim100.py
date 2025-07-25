@@ -17,11 +17,11 @@ class ExperimentConfig:
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES_PHATE"
         self.experiment_dir = "experiments"
-        self.experiment_name = "s3dim_100_01"
+        self.experiment_name = "s3dim_100_06"
 
         # ───── Data Parameters
         self.dim = 100
-        self.batch_size = 512
+        self.batch_size = 128
         self.n_distributions = 5
 
         # ───── Dataset Configuration
@@ -32,14 +32,21 @@ class ExperimentConfig:
         self.first_coupling = "ind"
         self.sigma = 1.5
         self.num_simulation_steps = 15
-        self.nb_inner_opt_steps = 5000
+        self.nb_inner_opt_steps = 20000
         self.nb_outer_iterations = 100
         self.eps = 1e-3
+
+
+        # ───── EMA Parameters
+
+        self.ema = True
+        self.decay_ema = 0.9999
+
 
         # Warmup epoch
 
         self.warmup = True
-        self.warmup_nb_inner_opt_steps = 10000
+        self.warmup_nb_inner_opt_steps = 100000
         self.warmup_epoch = 0
         # ───── Optimization
         self.lr = 2e-4
@@ -53,11 +60,11 @@ class ExperimentConfig:
 
         # ───── Network: Forward score model
 
-        self.net_fwd_layers = [512, 512,]
+        self.net_fwd_layers = [256, 256,]
         self.net_fwd_time_dim = 128
 
         # ───── Network: Backward score model
-        self.net_bwd_layers = [512, 512,]
+        self.net_bwd_layers = [256, 256,]
         self.net_bwd_time_dim = 128
 
         # ----- Inference

@@ -1,7 +1,4 @@
 from accelerate import Accelerator
-from datasets.datasets_registry import GaussianConfig
-
-from accelerate import Accelerator
 from datasets.datasets_registry import GaussianConfig, GaussianMixtureConfig
 
 
@@ -21,7 +18,7 @@ class ExperimentConfig:
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES_DEBUG"
         self.experiment_dir = "experiments_debug"
-        self.experiment_name = "debug_deseq5_commit_01"
+        self.experiment_name = "debug_ema_gaussian_03"
 
         # ───── Data Parameters
         self.dim = 2
@@ -39,6 +36,11 @@ class ExperimentConfig:
         self.nb_inner_opt_steps = 1000
         self.nb_outer_iterations = 100
         self.eps = 1e-3
+
+        # ───── EMA Parameters
+
+        self.ema = True
+        self.decay_ema = 0.999
 
         # Warmup epoch
 
@@ -112,9 +114,6 @@ class ExperimentConfig:
         # ───── Debug
 
         self.debug = True
-
-
-
 class DistributionConfig:
     def __init__(self, dim: int = 2, n_samples: int = 2000):
         self.dim = dim  # In Experiment Config

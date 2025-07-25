@@ -25,6 +25,8 @@ class IMF_DSBM:
         num_simulation_steps: int,
         net_fwd: nn.Module,
         net_bwd: nn.Module,
+        net_fwd_ema,
+        net_bwd_ema,
         optimizer,
         sig,
         eps,
@@ -43,6 +45,9 @@ class IMF_DSBM:
         self.net_fwd = net_fwd
         self.net_bwd = net_bwd
 
+        self.net_fwd_ema = net_fwd_ema
+        self.net_bwd_ema = net_bwd_ema
+
         self.net_dict = {}
         (
             self.net_dict["forward"],
@@ -53,6 +58,14 @@ class IMF_DSBM:
             net_fwd, net_bwd, optimizer["forward"], optimizer["backward"]
         )
 
+        self.ema_dict = {
+            "forward": self.net_fwd_ema,
+            "backward": self.net_bwd_ema,
+        }
+
+        self.ema_dict["forward"].to(self.device)
+        self.ema_dict["backward"].to(self.device)
+
     def train_one_direction(
         self, x_pairs, t_pairs: Tensor, direction: str, outer_iter_idx: int
     ):
@@ -62,20 +75,19 @@ class IMF_DSBM:
         grad_curve = []
         # 0. generate initial and final points
         dataset = TensorDataset(
-                        *self.generate_dataloaders(
-                            args=self.args,
-                            x_pairs=x_pairs,  # TODO give here x_pairs and time but x_pairs can be from different time_pairs
-                            t_pairs=t_pairs,
-                            direction_to_train=direction,
-                            outer_iter_idx=outer_iter_idx,
-                            first_coupling=self.args.first_coupling,
-                        )
-                    )
+            *self.generate_dataloaders(
+                args=self.args,
+                x_pairs=x_pairs,  # TODO give here x_pairs and time but x_pairs can be from different time_pairs
+                t_pairs=t_pairs,
+                direction_to_train=direction,
+                outer_iter_idx=outer_iter_idx,
+                first_coupling=self.args.first_coupling,
+            )
+        )
         dl = iter(
             self.accelerator.prepare(
                 DataLoader(
-                    dataset
-                    ,
+                    dataset,
                     batch_size=self.args.batch_size,
                     shuffle=True,
                     pin_memory=False,
@@ -86,16 +98,10 @@ class IMF_DSBM:
 
         nb_inner_opt_steps = self.args.nb_inner_opt_steps
 
-        if self.args.warmup  and outer_iter_idx == 0:
-
+        if self.args.warmup and outer_iter_idx == 0:
             print(f"WARMUP STEP {direction}")
 
             nb_inner_opt_steps = self.args.warmup_nb_inner_opt_steps
-
-            
-
-
-        
 
         # at this step we have dataloader with initial point generate and real end point
         pbar = tqdm(
@@ -111,8 +117,8 @@ class IMF_DSBM:
             except StopIteration:
                 dl = iter(
                     self.accelerator.prepare(
-                        DataLoader(dataset
-                            ,
+                        DataLoader(
+                            dataset,
                             batch_size=self.args.batch_size,
                             shuffle=True,
                             pin_memory=False,
@@ -133,16 +139,10 @@ class IMF_DSBM:
 
             pred = self.net_dict[direction](x_bridge_t, t)
 
-
-
-
-
-
-
             # 4. compute loss, backward, and optim step
             loss = (target - pred).view(pred.shape[0], -1).abs().pow(2).sum(dim=1)
             loss = loss.mean()
-
+            self.optimizer[direction].zero_grad()
             self.accelerator.backward(loss)
 
             # Compute total gradient norm (L2 norm)
@@ -151,19 +151,30 @@ class IMF_DSBM:
                 if p.grad is not None:
                     param_norm = p.grad.data.norm(2)
                     total_norm += param_norm.item() ** 2
-            total_norm = total_norm ** 0.5  # Final L2 norm of all gradients
+            total_norm = total_norm**0.5  # Final L2 norm of all gradients
 
             self.accelerator.clip_grad_norm_(
                 self.net_dict[direction].parameters(), self.args.grad_clip
             )
             self.optimizer[direction].step()
-            self.optimizer[direction].zero_grad()
+            if outer_iter_idx == 0 and inner_opt_step == self.args.warmup_nb_inner_opt_steps-1:
+
+                self.ema_dict[direction].ema_model.load_state_dict(
+                    self.net_dict[direction].state_dict()
+                                                                    )
+
+            self.ema_dict[direction].update(self.net_dict[direction])
 
             pbar.set_postfix(loss=loss.item())
             loss_curve.append(loss.item())
             grad_curve.append(total_norm)
 
-        return loss_curve, grad_curve, {"forward": self.net_fwd, "backward": self.net_bwd}
+        return (
+            loss_curve,
+            grad_curve,
+            {"forward": self.net_fwd, "backward": self.net_bwd},
+            {"forward": self.net_fwd_ema, "backward": self.net_bwd_ema},
+        )
 
     @torch.inference_mode()
     def generate_dataloaders(
