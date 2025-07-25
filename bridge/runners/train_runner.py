@@ -64,7 +64,7 @@ class trainer_bridges(N_Bridges):
             net_bwd_ema = self.net_bwd_ema,
             optimizer=optimizer,
             n_distribution=self.experiment_config.n_distributions,
-            distributions_train=self.distribution_config.distributions_train,
+            distributions=self.distribution_config.distributions,
             tracking_logger = self.tracking_logger
         )
 
@@ -88,7 +88,7 @@ class trainer_bridges(N_Bridges):
         input_dim = self.experiment_config.dim
         max_time = max(
             distribution.time
-            for distribution in self.distribution_config.distributions_train
+            for distribution in self.distribution_config.distributions
         )
 
         activation = nn.SiLU()

@@ -50,7 +50,7 @@ def compute_swd_pot(x: Tensor, y: Tensor, n_proj: int = 50) -> float:
 def evaluate_swd_over_time(
     generated: List[Tensor],
     time: List[float],
-    datasets_train: List,
+    datasets_inference: List,
     direction_tosample: str,
     n_proj: int = 50,
 ) -> List[Tuple[float, float]]:
@@ -73,7 +73,7 @@ def evaluate_swd_over_time(
 
     # Sort datasets by time depending on direction
     sorted_datasets = sorted(
-        datasets_train,
+        datasets_inference,
         key=lambda d: d.get_time(),
         reverse=(direction_tosample == "backward"),
     )
@@ -140,7 +140,7 @@ def evaluate_energy_over_time(
 def evaluate_wd_over_time(
     generated: List[Tensor],
     time: List[float],
-    datasets_train: List,
+    datasets_inference: List,
     direction_tosample: str,
 ) -> List[Tuple[float, float]]:
     """
@@ -158,7 +158,7 @@ def evaluate_wd_over_time(
     assert direction_tosample in ["forward", "backward"]
 
     sorted_datasets = sorted(
-        datasets_train,
+        datasets_inference,
         key=lambda d: d.get_time(),
         reverse=(direction_tosample == "backward"),
     )
@@ -203,7 +203,7 @@ def evaluate_wd_over_time(
 def evaluate_mmd_over_time(
     generated: List[Tensor],
     time: List[float],
-    datasets_train: List,
+    datasets_inference: List,
     direction_tosample: str,
     kernel_type: str = "gaussian",
     blur: float = 1.0,
@@ -218,7 +218,7 @@ def evaluate_mmd_over_time(
     assert direction_tosample in ["forward", "backward"]
 
     sorted_datasets = sorted(
-        datasets_train,
+        datasets_inference,
         key=lambda d: d.get_time(),
         reverse=(direction_tosample == "backward")
     )

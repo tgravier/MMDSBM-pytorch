@@ -1,5 +1,5 @@
 from accelerate import Accelerator
-from datasets.datasets_registry import GaussianConfig, GaussianMixtureConfig
+from datasets.datasets_registry import GaussianConfig, GaussianMixtureConfig, PhateFromTrajectoryConfig
 
 
 from accelerate import Accelerator
@@ -7,7 +7,6 @@ from datasets.datasets_registry import GaussianConfig, CircleConfig
 
 
 # Commentary :
-
 
 
 class ExperimentConfig:
@@ -18,12 +17,14 @@ class ExperimentConfig:
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES_DEBUG"
         self.experiment_dir = "experiments_debug"
-        self.experiment_name = "debug_ema_02"
+        self.experiment_name = "separation_train_test_debug"
 
         # ───── Data Parameters
         self.dim = 2
-        self.batch_size = 512
+        self.batch_size = 128
         self.n_distributions = 2
+        self.separation_train_test = False
+        self.nb_points_test = 1000
 
         # ───── Dataset Configuration
         self.distributions = DistributionConfig(dim=self.dim)
@@ -31,22 +32,26 @@ class ExperimentConfig:
         # ───── Simulation Parameters
 
         self.first_coupling = "ind"
-        self.sigma = 1
+        self.sigma = 1.5
         self.num_simulation_steps = 15
         self.nb_inner_opt_steps = 1000
         self.nb_outer_iterations = 100
         self.eps = 1e-3
 
+
         # ───── EMA Parameters
 
         self.ema = True
-        self.decay_ema = 0.999
+        self.decay_ema = 0.9999
+
 
         # Warmup epoch
 
         self.warmup = True
         self.warmup_nb_inner_opt_steps = 2000
         self.warmup_epoch = 0
+
+
         # ───── Optimization
         self.lr = 2e-4
         self.grad_clip = 20
@@ -59,16 +64,16 @@ class ExperimentConfig:
 
         # ───── Network: Forward score model
 
-        self.net_fwd_layers = [128, 128,]
-        self.net_fwd_time_dim = 64
+        self.net_fwd_layers = [256, 256,]
+        self.net_fwd_time_dim = 128
 
         # ───── Network: Backward score model
-        self.net_bwd_layers = [128, 128,]
-        self.net_bwd_time_dim = 64
+        self.net_bwd_layers = [256, 256,]
+        self.net_bwd_time_dim = 128
 
         # ----- Inference
 
-        self.sigma_inference = 1
+        self.sigma_inference = 1.5
         self.num_sample_metric = 1000
 
         # ───── Visualisation
@@ -117,7 +122,7 @@ class ExperimentConfig:
 
 
 class DistributionConfig:
-    def __init__(self, dim: int = 2, n_samples: int = 1000):
+    def __init__(self, dim: int = 2, n_samples: int = 3000):
         self.dim = dim
         self.n_samples = n_samples
 
@@ -126,7 +131,7 @@ class DistributionConfig:
         radius = 1.0
         thickness = 0.1
 
-        self.distributions_train = [
+        self.distributions = [
 
             GaussianConfig(
                 time=0,

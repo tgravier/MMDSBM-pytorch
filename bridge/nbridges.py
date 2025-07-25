@@ -15,6 +15,7 @@ from datasets.datasets_registry import DatasetConfig
 from datasets.datasets import load_dataset, TimedDataset
 from bridge.sde.bridge_sampler import inference_sample_sde
 from utils.visualization import make_trajectory
+from typing import Union, List, Tuple
 from utils.metrics import (
     evaluate_swd_over_time,
     evaluate_energy_over_time,
@@ -34,8 +35,8 @@ class N_Bridges(IMF_DSBM):
         optimizer,
         tracking_logger,
         n_distribution: int,
-        distributions_train: Sequence[DatasetConfig],
-        distributions_test: Optional[Sequence[DatasetConfig]] = None,
+        distributions: Sequence[DatasetConfig],
+        
     ):
         self.args = args
         super().__init__(
@@ -55,30 +56,27 @@ class N_Bridges(IMF_DSBM):
 
         self.tracking_logger = tracking_logger
 
-        self._validate_config_time_unique(distributions_train, "train")
-        if distributions_test is not None:
-            self._validate_config_time_unique(distributions_test, "test")
-            if len(distributions_test) != n_distribution:
-                raise ValueError(
-                    "Length of distributions_test must match n_distribution"
-                )
-            for d_train, d_test in zip(distributions_train, distributions_test):
-                if d_train.name != d_test.name:
-                    raise ValueError(
-                        f"Train/Test mismatch: {d_train.name} vs {d_test.name}"
-                    )
+        self._validate_config_time_unique(distributions, "train")
+        
+                    
 
-        if len(distributions_train) != n_distribution:
-            raise ValueError("Length of distributions_train must match n_distribution")
+        if len(distributions) != n_distribution:
+            raise ValueError("Length of distributions must match n_distribution")
 
         self.n_distribution = n_distribution
-        self.distributions_train = distributions_train
-        self.distributions_test = distributions_test
+        self.distributions = distributions
 
-        self.datasets_train = self.prepare_dataset(distributions_train)
-        self.datasets_test = (
-            self.prepare_dataset(distributions_test) if distributions_test else None
-        )
+
+
+
+        if self.args.separation_train_test:
+
+            self.datasets_train, self.datasets_test = self.prepare_dataset(distributions, separation_train_test=self.args.separation_train_test)
+        
+        else:
+            self.datasets_train = self.prepare_dataset(distributions)
+
+
 
     def _validate_config_time_unique(
         self, distributions: List[DatasetConfig], mode: str
@@ -92,8 +90,24 @@ class N_Bridges(IMF_DSBM):
                 + "\n".join(f"- {repr(d)}" for d in dups)
             )
 
-    def prepare_dataset(self, distributions: List[DatasetConfig]) -> List[TimedDataset]:
-        return [load_dataset(cfg) for cfg in distributions]
+    def prepare_dataset(
+        self, 
+        distributions: List[DatasetConfig], 
+        separation_train_test: bool = False
+    ) -> Union[List[TimedDataset], Tuple[List[TimedDataset], List[TimedDataset]]]:
+        if separation_train_test:
+            # load_dataset returns (train, test) tuple for each config
+            train_test_pairs = [
+                load_dataset(cfg, separation_train_test=self.args.separation_train_test, nb_points_test=self.args.nb_points_test)
+                for cfg in distributions
+            ]
+            train_datasets = [pair[0] for pair in train_test_pairs]
+            test_datasets = [pair[1] for pair in train_test_pairs]
+            return train_datasets, test_datasets
+        else:
+            return [load_dataset(cfg) for cfg in distributions]
+
+    
 
     def generate_dataset_pairs(
         self, forward_pairs: List[Tuple[TimedDataset, TimedDataset]]
@@ -189,7 +203,7 @@ class N_Bridges(IMF_DSBM):
                     args=self.args,
                     outer_iter_idx=outer_iter_idx,
                     direction_to_train=direction_to_train,
-                    net_dict=ema_dict,
+                    net_dict=ema_dict, #TODO create an intermediary pointer if ema_dict is false : like net_inference -> ema_dict or net_dict
                     loss_curve=loss_curve,
                     grad_curve=grad_curve,
                 )
@@ -223,35 +237,34 @@ class N_Bridges(IMF_DSBM):
         args,
         direction_tosample: str,
         net_dict: dict,
-        dataset_train: list,
+        datasets_inference: list,
         outer_iter_idx: int,
         num_samples: int = 100,
         num_steps: int = 200,
         sigma: float = 1.0,
         one_bridge: bool = False,
-    ):
+    ):  
         device = next(net_dict[direction_tosample].parameters()).device
 
         max_idx = max(
-            range(len(dataset_train)), key=lambda i: float(dataset_train[i].get_time())
+            range(len(datasets_inference)), key=lambda i: float(datasets_inference[i].get_time())
         )
         min_idx = min(
-            range(len(dataset_train)), key=lambda i: float(dataset_train[i].get_time())
+            range(len(datasets_inference)), key=lambda i: float(datasets_inference[i].get_time())
         )
 
         z0 = (
-            dataset_train[min_idx if direction_tosample == "forward" else max_idx]
+            datasets_inference[min_idx if direction_tosample == "forward" else max_idx]
             .get_all()
             .to(device)
         )
 
-        
         idx = torch.randint(0, z0.shape[0], (num_samples,))
         z0_sampled = z0[idx]
 
-        t_pairs = [dataset_train[min_idx].get_time(), dataset_train[max_idx].get_time()]
+        t_pairs = [datasets_inference[min_idx].get_time(), datasets_inference[max_idx].get_time()]
         if not one_bridge:
-            num_steps *= len(dataset_train) - 1
+            num_steps *= len(datasets_inference) - 1
 
         generated, time = inference_sample_sde(
             zstart=z0_sampled,
@@ -327,8 +340,21 @@ class N_Bridges(IMF_DSBM):
         return last_ckpt_path, archive_path
 
     def orchestrate_experiment(
-        self, args, outer_iter_idx, direction_to_train, net_dict, loss_curve, grad_curve
+        self, args, outer_iter_idx, direction_to_train, net_dict, loss_curve, grad_curve,
     ):
+        
+        
+
+        if self.args.separation_train_test:
+
+            datasets_inference = self.datasets_test
+            print("MODE EVAL WITH DATASET_TEST")
+        
+        else:
+            
+            datasets_inference = self.datasets_train
+            print("MODE EVAL WITH DATASET_TRAIN")
+
         # ───── Log average loss and gradient per direction
         self.tracking_logger.log(
             {
@@ -360,7 +386,7 @@ class N_Bridges(IMF_DSBM):
                 args=args,
                 direction_tosample=direction_to_train,
                 net_dict=net_dict,
-                dataset_train=self.datasets_train,
+                datasets_inference=datasets_inference,
                 outer_iter_idx=outer_iter_idx,
                 num_samples=args.num_sample_metric,
                 num_steps=args.num_simulation_steps,
@@ -399,7 +425,7 @@ class N_Bridges(IMF_DSBM):
             swd_scores = evaluate_swd_over_time(
                 generated=generated,
                 time=time,
-                datasets_train=self.datasets_train,
+                datasets_inference=datasets_inference,
                 direction_tosample=direction_to_train,
             )
             for t, swd in swd_scores:
@@ -417,7 +443,7 @@ class N_Bridges(IMF_DSBM):
                 wd_scores = evaluate_wd_over_time(
                     generated=generated,
                     time=time,
-                    datasets_train=self.datasets_train,
+                    datasets_inference=datasets_inference,
                     direction_tosample=direction_to_train,
                 )
                 for t, wd in wd_scores:
@@ -436,7 +462,7 @@ class N_Bridges(IMF_DSBM):
             mmd_scores = evaluate_mmd_over_time(
                 generated=generated,
                 time=time,
-                datasets_train=self.datasets_train,
+                datasets_inference=datasets_inference,
                 direction_tosample=direction_to_train,
                 kernel_type=args.mmd_kernel,
             )
@@ -470,7 +496,7 @@ class N_Bridges(IMF_DSBM):
 
         # ───── Save networks
         if do_save:
-            _, archive_path = self.save_networks(
+            _, archive_path = self.save_networks(   #TODO maybe save also current step and not just EMA ?
                 net_dict, direction_to_train, outer_iter_idx
             )
             self.tracking_logger.run.save(archive_path)

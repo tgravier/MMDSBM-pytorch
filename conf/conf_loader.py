@@ -88,7 +88,7 @@ def load_config(
             continue
         if name == "distributions":
             lines.append(
-                f"{name:20}: DistributionConfig with {len(distribution_cfg.distributions_train)} distributions"
+                f"{name:20}: DistributionConfig with {len(distribution_cfg.distributions)} distributions"
             )
         else:
             lines.append(f"{name:20}: {value}")
@@ -96,7 +96,7 @@ def load_config(
 
     lines.append("Loaded Distribution Bridges:")
     lines.append("-" * 35)
-    for dist in distribution_cfg.distributions_train:
+    for dist in distribution_cfg.distributions:
         dist_type = type(dist).__name__
         dist_params = {
             k: v
@@ -133,6 +133,6 @@ def export_config_dict(config_classes):
             "time": dist.time,
             **dist.params,
         }
-        for dist in distribution_cfg.distributions_train
+        for dist in distribution_cfg.distributions
     ]
     return config_dict

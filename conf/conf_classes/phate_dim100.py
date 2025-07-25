@@ -23,6 +23,8 @@ class ExperimentConfig:
         self.dim = 100
         self.batch_size = 128
         self.n_distributions = 5
+        self.separation_train_test = True
+        self.n_points_test = 1000
 
         # ───── Dataset Configuration
         self.distributions = DistributionConfig(dim=self.dim)
@@ -123,7 +125,7 @@ class DistributionConfig:
         self.dim = dim
 
 
-        self.distributions_train = [
+        self.distributions = [
             PhateFromTrajectoryConfig(
                 time=0,
                 dim=dim,
