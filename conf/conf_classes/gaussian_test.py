@@ -17,7 +17,7 @@ class ExperimentConfig:
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES_DEBUG"
         self.experiment_dir = "experiments_debug"
-        self.experiment_name = "separation_train_test_debug"
+        self.experiment_name = "debug_time_04"
 
         # ───── Data Parameters
         self.dim = 2
@@ -32,10 +32,10 @@ class ExperimentConfig:
         # ───── Simulation Parameters
 
         self.first_coupling = "ind"
-        self.sigma = 1.5
+        self.sigma = 1
         self.num_simulation_steps = 15
-        self.nb_inner_opt_steps = 1000
-        self.nb_outer_iterations = 100
+        self.nb_inner_opt_steps = 1
+        self.nb_outer_iterations = 1
         self.eps = 1e-3
 
 
@@ -48,7 +48,7 @@ class ExperimentConfig:
         # Warmup epoch
 
         self.warmup = True
-        self.warmup_nb_inner_opt_steps = 2000
+        self.warmup_nb_inner_opt_steps = 1000
         self.warmup_epoch = 0
 
 
@@ -73,7 +73,7 @@ class ExperimentConfig:
 
         # ----- Inference
 
-        self.sigma_inference = 1.5
+        self.sigma_inference = 1
         self.num_sample_metric = 1000
 
         # ───── Visualisation
@@ -146,8 +146,6 @@ class DistributionConfig:
                 std = [1,1],
                 n_samples=  self.n_samples,
                 dim=2,),
-
-
 
 
 

@@ -135,6 +135,8 @@ class IMF_DSBM:
                 self.args, z_pairs, t_tensor, direction
             )
 
+
+
             # 3. get net prediction
 
             pred = self.net_dict[direction](x_bridge_t, t)
@@ -188,8 +190,8 @@ class IMF_DSBM:
     ):
         if (
             outer_iter_idx <= self.args.warmup_epoch
-        ):  # TODO for this change because the case is just forward, backward it's identity
-            if direction_to_train == "forward":  # TODO debug all warmup tomorrow
+        ): 
+            if direction_to_train == "forward": 
                 if first_coupling == "ref":
                     zstart = x_pairs[:, 0]
                     zend = (

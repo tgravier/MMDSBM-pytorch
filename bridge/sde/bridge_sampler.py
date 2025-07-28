@@ -96,7 +96,7 @@ def sample_sde(
         ts = ts.flip(dims=[1])
 
     dt = torch.abs(t_max - t_min) / N
-    dt = dt.view(-1, 1)  # shape: [6000, 1]
+    dt = dt.view(-1, 1)  # shape: [N_samples, 1]
 
     z = zstart.detach().clone()
     score = net_dict[direction_tosample].eval()
