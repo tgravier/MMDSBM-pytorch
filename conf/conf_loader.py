@@ -136,3 +136,87 @@ def export_config_dict(config_classes):
         for dist in distribution_cfg.distributions
     ]
     return config_dict
+
+
+def load_config_inference(config_name: str = None, experiment_path: str = None):
+    """
+    Load configuration for inference from:
+    - a config file inside experiment_path/conf/ (if experiment_path is provided), or
+    - from conf.conf_classes.<config_name> (if config_name is provided).
+
+    Also creates an 'inference/' folder inside the experiment path to store outputs.
+    """
+    if experiment_path:
+        # Load config from saved experiment folder
+        exp_path = Path(experiment_path)
+        conf_dir = exp_path / "conf"
+        py_files = list(conf_dir.glob("*.py"))
+
+        if not py_files:
+            raise FileNotFoundError(f"No config .py file found in {conf_dir}")
+
+        config_file = py_files[0]
+        spec = importlib.util.spec_from_file_location("loaded_config", config_file)
+        loaded_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(loaded_module)
+
+        ExperimentConfigCls = getattr(loaded_module, "ExperimentConfig")
+    elif config_name:
+        # Load config from module path
+        module_path = f"conf.conf_classes.{config_name}"
+        try:
+            module = importlib.import_module(module_path)
+        except ModuleNotFoundError as e:
+            raise ImportError(
+                f"Could not import configuration module '{module_path}': {e}"
+            )
+        ExperimentConfigCls = getattr(module, "ExperimentConfig")
+        exp_path = Path(getattr(ExperimentConfigCls(), "experiment_dir")) / getattr(ExperimentConfigCls(), "experiment_name")
+    else:
+        raise ValueError("Either 'experiment_path' or 'config_name' must be provided.")
+
+    # Initialize config
+    experiment_cfg = ExperimentConfigCls()
+    distribution_cfg = experiment_cfg.distributions
+    experiment_cfg.distribution_cfg = distribution_cfg
+
+    # Create inference output directory
+    inference_dir = exp_path / "inference"
+    inference_dir.mkdir(parents=True, exist_ok=True)
+
+    # Print and save summary
+    lines = []
+    lines.append("Loaded Inference Configuration:")
+    lines.append("-" * 35)
+    for name, value in inspect.getmembers(experiment_cfg):
+        if name.startswith("_") or inspect.ismethod(value) or inspect.isfunction(value):
+            continue
+        if name == "distributions":
+            lines.append(
+                f"{name:20}: DistributionConfig with {len(distribution_cfg.distributions)} distributions"
+            )
+        else:
+            lines.append(f"{name:20}: {value}")
+    lines.append("-" * 35)
+
+    lines.append("Loaded Distribution Bridges:")
+    lines.append("-" * 35)
+    for dist in distribution_cfg.distributions:
+        dist_type = type(dist).__name__
+        dist_params = {
+            k: v
+            for k, v in vars(dist).items()
+            if not k.startswith("_") and not callable(v)
+        }
+        param_str = ", ".join(f"{k}={v}" for k, v in dist_params.items())
+        lines.append(f"{dist_type:15} | {param_str}")
+    lines.append("-" * 35)
+
+    print("\n" + "\n".join(lines) + "\n")
+
+    # Save to summary file inside inference folder
+    summary_path = inference_dir / "inference_summary.txt"
+    with open(summary_path, "w") as f:
+        f.write("\n".join(lines))
+
+    return experiment_cfg
