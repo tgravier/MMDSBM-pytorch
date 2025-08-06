@@ -9,7 +9,7 @@
             "console": "integratedTerminal",
             "args": [
                 "--config",
-                "gaussian_test"
+                "debug_gaussian5"
         }
     ]
 }

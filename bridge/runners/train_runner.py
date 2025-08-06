@@ -91,6 +91,8 @@ class trainer_bridges(N_Bridges):
             for distribution in self.distribution_config.distributions
         )
 
+
+
         activation = nn.SiLU()
         if model_name == "mlp":
 
@@ -117,7 +119,8 @@ class trainer_bridges(N_Bridges):
                 activation_fn=activation,
                 num_blocks=5,
                 time_dim=16, 
-                output_dim=input_dim
+                output_dim=input_dim,
+                max_time=max_time,
             )
 
             net_bwd  = ScoreNetworkResNet(

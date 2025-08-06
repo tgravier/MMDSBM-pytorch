@@ -22,6 +22,8 @@ class IMF_DSBM:
     def __init__(
         self,
         args,
+        min_time:float,
+        max_time:float,
         num_simulation_steps: int,
         net_fwd: nn.Module,
         net_bwd: nn.Module,
@@ -37,6 +39,8 @@ class IMF_DSBM:
         self.accelerator = args.accelerator
 
         self.N = num_simulation_steps
+        self.min_time = min_time
+        self.max_time = max_time
         self.sig = sig
         self.eps = eps
         self.optimizer = optimizer
@@ -77,7 +81,7 @@ class IMF_DSBM:
         dataset = TensorDataset(
             *self.generate_dataloaders(
                 args=self.args,
-                x_pairs=x_pairs,  # TODO give here x_pairs and time but x_pairs can be from different time_pairs
+                x_pairs=x_pairs,  
                 t_pairs=t_pairs,
                 direction_to_train=direction,
                 outer_iter_idx=outer_iter_idx,
@@ -246,12 +250,14 @@ class IMF_DSBM:
             zend = sampler.sample_sde(  # TODO see sample SDE
                 zstart=zstart,
                 t_pairs=t_pairs,
+                full_traj_tmin=self.min_time,
+                full_traj_tmax=self.max_time,
                 net_dict=self.net_dict,
                 direction_tosample=previous_direction,
                 N=self.args.num_simulation_steps,
                 sig=self.args.sigma,
                 device=self.accelerator.device,
-            )[0][-1]
+            )
 
             match direction_to_train:
                 case "forward":  # previous = backward

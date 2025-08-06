@@ -38,17 +38,8 @@ class N_Bridges(IMF_DSBM):
         distributions: Sequence[DatasetConfig],
     ):
         self.args = args
-        super().__init__(
-            args=args,
-            num_simulation_steps=args.num_simulation_steps,
-            optimizer=optimizer,
-            net_fwd=net_fwd,
-            net_bwd=net_bwd,
-            net_fwd_ema=net_fwd_ema,
-            net_bwd_ema=net_bwd_ema,
-            sig=args.sigma,
-            eps=args.eps,
-        )
+        
+
 
         self.net_fwd_ema = net_fwd_ema
         self.net_bwd_ema = net_bwd_ema
@@ -68,8 +59,39 @@ class N_Bridges(IMF_DSBM):
                 distributions, separation_train_test=self.args.separation_train_test
             )
 
+
         else:
             self.datasets_train = self.prepare_dataset(distributions)
+
+        
+        self.min_time, self.max_time = self.min_max_time(self.datasets_train)
+
+        super().__init__(
+            args=args,
+            num_simulation_steps=args.num_simulation_steps,
+            optimizer=optimizer,
+            min_time=self.min_time,
+            max_time=self.max_time,
+            net_fwd=net_fwd,
+            net_bwd=net_bwd,
+            net_fwd_ema=net_fwd_ema,
+            net_bwd_ema=net_bwd_ema,
+            sig=args.sigma,
+            eps=args.eps,
+        )
+    
+
+    
+
+    def min_max_time(self, datasets):
+
+        max_time = max(float(ds.get_time()) for ds in datasets)
+        min_time = min(float(ds.get_time()) for ds in datasets)
+
+        return min_time, max_time
+
+
+
 
     def _validate_config_time_unique(
         self, distributions: List[DatasetConfig], mode: str
@@ -177,7 +199,7 @@ class N_Bridges(IMF_DSBM):
             print(f"\n[Epoch {outer_iter_idx}]")
 
             forward_pairs = list(zip(self.datasets_train[:-1], self.datasets_train[1:]))
-
+            
             if not (
                 skip_forward
                 and outer_iter_idx == self.args.resume_train_nb_outer_iterations
@@ -237,18 +259,13 @@ class N_Bridges(IMF_DSBM):
         num_samples: int = 100,
         num_steps: int = 200,
         sigma: float = 1.0,
-        one_bridge: bool = False,
     ):
         device = next(net_dict[direction_tosample].parameters()).device
 
-        max_idx = max(
-            range(len(datasets_inference)),
-            key=lambda i: float(datasets_inference[i].get_time()),
-        )
-        min_idx = min(
-            range(len(datasets_inference)),
-            key=lambda i: float(datasets_inference[i].get_time()),
-        )
+
+
+        min_idx = 0
+        max_idx = -1
 
         z0 = (
             datasets_inference[min_idx if direction_tosample == "forward" else max_idx]
@@ -259,17 +276,23 @@ class N_Bridges(IMF_DSBM):
         idx = torch.randint(0, z0.shape[0], (num_samples,))
         z0_sampled = z0[idx]
 
-        t_pairs = [
-            datasets_inference[min_idx].get_time(),
-            datasets_inference[max_idx].get_time(),
-        ]
-        if not one_bridge:
-            num_steps *= len(datasets_inference) - 1
+
+        # Build t_pairs as tensor of shape (n_bridge, 2)
+        t_pairs_datasets = torch.tensor(
+            [
+            [datasets_inference[i].get_time(), datasets_inference[i + 1].get_time()]
+            for i in range(len(datasets_inference) - 1)
+            ],
+            dtype=torch.float32,
+            device=device,
+        )
+
+
 
         generated, time = inference_sample_sde(
             zstart=z0_sampled,
             net_dict=net_dict,
-            t_pairs=t_pairs,
+            t_pairs=t_pairs_datasets,
             direction_tosample=direction_tosample,
             N=num_steps,
             sig=sigma,

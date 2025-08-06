@@ -1,5 +1,5 @@
 from accelerate import Accelerator
-from datasets.datasets_registry import GaussianConfig, GaussianMixtureConfig
+from datasets.datasets_registry import GaussianConfig, GaussianMixtureConfig, PhateFromTrajectoryConfig
 
 
 from accelerate import Accelerator
@@ -7,7 +7,6 @@ from datasets.datasets_registry import GaussianConfig, CircleConfig
 
 
 # Commentary :
-
 
 
 class ExperimentConfig:
@@ -18,12 +17,14 @@ class ExperimentConfig:
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES_DEBUG"
         self.experiment_dir = "experiments_debug"
-        self.experiment_name = "debug_ema_gaussian_03"
+        self.experiment_name = "debug_new_time_07"
 
         # ───── Data Parameters
         self.dim = 2
-        self.batch_size = 512
+        self.batch_size = 128
         self.n_distributions = 4
+        self.separation_train_test = False
+        self.nb_points_test = 1000
 
         # ───── Dataset Configuration
         self.distributions = DistributionConfig(dim=self.dim)
@@ -32,21 +33,25 @@ class ExperimentConfig:
 
         self.first_coupling = "ind"
         self.sigma = 1
-        self.num_simulation_steps = 15
-        self.nb_inner_opt_steps = 1000
-        self.nb_outer_iterations = 100
+        self.num_simulation_steps = 120
+        self.nb_inner_opt_steps = 5000
+        self.nb_outer_iterations = 5
         self.eps = 1e-3
+
 
         # ───── EMA Parameters
 
         self.ema = True
-        self.decay_ema = 0.999
+        self.decay_ema = 0.9999
+
 
         # Warmup epoch
 
         self.warmup = True
-        self.warmup_nb_inner_opt_steps = 2000
+        self.warmup_nb_inner_opt_steps = 5000
         self.warmup_epoch = 0
+
+
         # ───── Optimization
         self.lr = 2e-4
         self.grad_clip = 20
@@ -55,16 +60,16 @@ class ExperimentConfig:
 
         # --- Network General
 
-        self.model_name = "mlp"
+        self.model_name = "resnet"
 
         # ───── Network: Forward score model
 
-        self.net_fwd_layers = [128, 128,]
-        self.net_fwd_time_dim = 64
+        self.net_fwd_layers = [256, 256,]
+        self.net_fwd_time_dim = 128
 
         # ───── Network: Backward score model
-        self.net_bwd_layers = [128, 128,]
-        self.net_bwd_time_dim = 64
+        self.net_bwd_layers = [256, 256,]
+        self.net_bwd_time_dim = 128
 
         # ----- Inference
 
@@ -114,13 +119,14 @@ class ExperimentConfig:
         # ───── Debug
 
         self.debug = True
+
 class DistributionConfig:
     def __init__(self, dim: int = 2, n_samples: int = 2000):
         self.dim = dim  # In Experiment Config
         self.n_samples = 10000
 
         # ───── Define training distributions (3 Gaussians)
-        self.distributions_train = [
+        self.distributions = [
             GaussianConfig(
                 time=0,
                 mean=[5, 1],
@@ -129,21 +135,21 @@ class DistributionConfig:
                 dim=self.dim,
             ),
             GaussianConfig(
-                time=1,
+                time=5.6,
                 mean=[9, 5],
                 std=[1, 1],
                 n_samples=self.n_samples,
                 dim=self.dim,
             ),
             GaussianConfig(
-                time=2,
+                time=8,
                 mean=[5, 9],
                 std=[1, 1],
                 n_samples=self.n_samples,
                 dim=self.dim,
             ),
             GaussianConfig(
-                time=3,
+                time=11,
                 mean=[1, 5],
                 std=[1, 1],
                 n_samples=self.n_samples,

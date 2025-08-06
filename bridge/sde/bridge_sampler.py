@@ -2,6 +2,8 @@
 
 """This file gives us all the function to simulate SDE, for diffusion or for the brownian bridge"""
 
+# TODO verifiate each line of this function to see if we have the best sampler for train & inference
+
 import torch
 from torch import Tensor
 from typing import Tuple
@@ -72,93 +74,157 @@ def sample_sde(
     t_pairs: Tensor,
     net_dict,
     direction_tosample: str,
-    N: int = 1000,
-    sig: float = 1.0,
-    device: str = "cuda",
+    N: int,
+    sig: float,
+    device: str,
+    full_traj_tmax: float,
+    full_traj_tmin: float,
 ):
     assert direction_tosample in ["forward", "backward"]
 
     t_min = t_pairs[:, 0]
     t_max = t_pairs[:, 1]
 
-    # vectorisation of linspace method
-    steps = torch.linspace(0, 1, N, device=device)  # shape [N]
+    time_deltas = t_max - t_min
+    
+    tensor_of_proportions_of_total = time_deltas / (full_traj_tmax - full_traj_tmin)
+
+    # create the linspace for each time delta proportionally to the total time of the full trajectory
+    proportions_of_total = {
+        one_time_delta: one_time_delta / (full_traj_tmax - full_traj_tmin)
+        for one_time_delta in torch.unique(time_deltas)
+    }
+    # print(f"DEBUG proportions_of_total: {proportions_of_total}")
+    steps = {
+        one_time_delta: torch.linspace(
+            0,
+            1,
+            int(torch.round(N * proportions_of_total[one_time_delta]).item()),
+            device=device,
+        )
+        for one_time_delta in proportions_of_total
+    }
+    max_nb_steps = max(len(s) for s in steps.values()) - 1
 
     # expend t_min and t_max to create the linspace
-
     t_min_exp = t_min.unsqueeze(1)  # shape [6000, 1]
     t_max_exp = t_max.unsqueeze(1)  # shape [6000, 1]
 
     # Interpolation linéaire entre t_min et t_max
-    ts = t_min_exp + (t_max_exp - t_min_exp) * steps  # shape [6000, N]
+    ts = torch.full(
+        (len(t_min), max_nb_steps), float("nan"), dtype=torch.float, device=device
+    )  # shape [6000, N]
+    this_time_delta_indices_list = []
+
+    for one_time_delta in steps:
+
+        this_time_delta_indices = time_deltas == one_time_delta
+        this_time_delta_t_min_exp = t_min_exp[this_time_delta_indices]
+        this_time_delta_t_max_exp = t_max_exp[this_time_delta_indices]
+        this_time_delta_ts = (
+            this_time_delta_t_min_exp
+            + (this_time_delta_t_max_exp - this_time_delta_t_min_exp)
+            * steps[one_time_delta]
+        )
+        if direction_tosample == "forward":
+            this_time_delta_ts = this_time_delta_ts[:, :-1]
+
+        elif direction_tosample == "backward":
+            this_time_delta_ts = this_time_delta_ts[:, 1:]
+        
+
+
+        # Pad this_time_delta_ts with NaNs to have shape [num_samples, max_nb_steps]
+        pad_size = max_nb_steps - this_time_delta_ts.shape[1]
+        if pad_size > 0:
+            nan_pad = torch.full(
+                (this_time_delta_ts.shape[0], pad_size), float("nan"), device=device
+            )
+            this_time_delta_ts = torch.cat([this_time_delta_ts, nan_pad], dim=1)
+
+        ts[this_time_delta_indices] = this_time_delta_ts
+
+
+
+    dt = 1.0/(N*tensor_of_proportions_of_total) 
+    dt = dt.unsqueeze(1)
 
     if direction_tosample == "backward":
         ts = ts.flip(dims=[1])
-
-    dt = torch.abs(t_max - t_min) / N
-    dt = dt.view(-1, 1)  # shape: [N_samples, 1]
+        dt = dt.flip(dims=[1])
 
     z = zstart.detach().clone()
     score = net_dict[direction_tosample].eval()
-    batchsize = z.size(0)  # TODO verif the dim if 0 is still the batchsize
-    traj = [z.detach().clone()]
 
-
-    for i in range(N): #TODO we change N in N-1 verif if its ok
-        t = ts[:, i].unsqueeze(1)  # shape [batchsize, 1], chaque sample a son propre t
-        pred = score(z, t)  # assume score accepte [batchsize, D] et [batchsize, 1]
-        z = z + pred * dt + sig * torch.randn_like(z) * torch.sqrt(dt)
-        traj.append(z.detach().clone())
-
-    return traj, ts
+    for i in range(max_nb_steps):  # TODO: clean the [mask]s
+        mask = ~torch.isnan(ts[:, i])  # mask to filter out NaNs
+        t = ts[mask, i].unsqueeze(
+            1
+        )  # shape [batchsize, 1], chaque sample a son propre t
+        pred = score(
+            z[mask], t
+        )  # assume score accepte [batchsize, D] et [batchsize, 1]
+        z[mask] = (
+            z[mask]
+            + pred * dt[mask]
+            + sig * torch.randn_like(z[mask]) * torch.sqrt(dt[mask])
+        )
+    return z
 
 
 @torch.no_grad()
 def inference_sample_sde(
     zstart: torch.Tensor,
-    t_pairs,
+    t_pairs: torch.Tensor,
+    device: str,
     net_dict,
     direction_tosample: str,
     N: int = 1000,
     sig: float = 1.0,
-    device: str = "cuda",
 ):
     assert direction_tosample in ["forward", "backward"]
 
-    t_min, t_max = t_pairs
+    full_traj_tmax = t_pairs.cpu().max()
+    full_traj_tmin = t_pairs.cpu().min()
 
-    ts = np.linspace(t_min, t_max, N)
+    sign = 1.0
+
+    dt_step = (full_traj_tmax - full_traj_tmin) / N
+
+    ts = torch.arange(full_traj_tmin, full_traj_tmax, step=dt_step, device=device)
+
+    # Compute dt for each interval in t_pairs
+    dt = torch.zeros_like(ts, device=device)
+    for i in range(t_pairs.shape[0]):
+        t_start = t_pairs[i, 0]
+        t_end = t_pairs[i, 1]
+        mask = (ts >= t_start) & (ts < t_end)
+        interval_dt = (full_traj_tmax - full_traj_tmin) / ((t_end - t_start) * N)
+        dt[mask] = interval_dt
 
     if direction_tosample == "backward":
-        ts = ts[::-1]
-
-    dt = abs(t_max - t_min) / N
-
-    sign = 1
-    if direction_tosample == "backward": 
         sign = -1
-
-    z = zstart.detach().clone()
+        ts = torch.arange(full_traj_tmax, full_traj_tmin, step=-dt_step)
+        dt = dt.flip(dims=[0])
 
     score = net_dict[direction_tosample].eval()
 
-    batchsize = z.size(0)
+    z = zstart.detach().clone()
 
     traj = [z.detach().clone()]
+    t_list = [ts[0]]
 
-    t_list = [ts[0]]  # TODO verif if this is okay, exploding variance at the end
+    batchsize = z.shape[0]
 
-    for i in range(N): #TODO cf function train for sample
+    for i in range(len(ts)):
         t = torch.full((batchsize, 1), float(ts[i]), device=device)
 
-        t_list.append(ts[i] + dt*sign)
-        
+        t_list.append(ts[i] + dt_step * sign)
 
         pred = score(z, t)
 
-        z = z + pred * dt + sig * torch.randn_like(z) * np.sqrt(dt)
+        z = z + pred * dt[i] + sig * torch.randn_like(z) * torch.sqrt(dt[i])
 
         traj.append(z.detach().clone())
 
     return traj, t_list
-
