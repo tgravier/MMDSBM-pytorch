@@ -58,11 +58,12 @@ class N_Bridges(IMF_DSBM):
             self.datasets_train, self.datasets_test = self.prepare_dataset(
                 distributions, separation_train_test=self.args.separation_train_test
             )
+            self.datasets_train = self.leave_out_datasets(self.datasets_train)
 
 
         else:
             self.datasets_train = self.prepare_dataset(distributions)
-
+            self.datasets_train =self.leave_out_datasets(self.datasets_train)
         
         self.min_time, self.max_time = self.min_max_time(self.datasets_train)
 
@@ -80,6 +81,14 @@ class N_Bridges(IMF_DSBM):
             eps=args.eps,
         )
     
+    def leave_out_datasets(self, time_datasets_list):
+        datasets_train_filtered = []
+        for ds in time_datasets_list:
+            if ds.get_time() in self.args.leave_out_list:
+                self.args.leave_out_list.append(ds)
+            else:
+                datasets_train_filtered.append(ds)
+        return datasets_train_filtered
 
     
 
@@ -404,13 +413,18 @@ class N_Bridges(IMF_DSBM):
             args.save_networks and outer_iter_idx % args.save_networks_n_epoch == 0
         )
 
+
+
         # ───── Only run inference if needed
         if do_plot or do_swd or do_mmd or do_energy:
+
+
+            datasets_for_generation = self.leave_out_datasets(datasets_inference)
             generated, time = self.inference_test(
                 args=args,
                 direction_tosample=direction_to_train,
                 net_dict=net_dict,
-                datasets_inference=datasets_inference,
+                datasets_inference=datasets_for_generation, # We use datasets_for_generation to keep the good dt
                 outer_iter_idx=outer_iter_idx,
                 num_samples=args.num_sample_metric,
                 num_steps=args.num_simulation_steps,
@@ -427,7 +441,7 @@ class N_Bridges(IMF_DSBM):
                 generated=generated,
                 time=time,
                 direction_tosample=direction_to_train,
-                dataset_train=self.datasets_train,
+                dataset_train=datasets_inference,
                 outer_iter_idx=outer_iter_idx,
                 fps=args.fps,
                 plot_traj=args.plot_traj,

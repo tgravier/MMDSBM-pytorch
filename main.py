@@ -1,7 +1,7 @@
 # main.py
 
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 
 import argparse
 from bridge.runners.train_runner import trainer_bridges
@@ -57,7 +57,7 @@ def main():
         logger=logger,
         resume_train=args.resume_train
     )
-    trainer.train()
+
 
 
 
