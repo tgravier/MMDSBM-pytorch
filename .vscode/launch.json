@@ -10,6 +10,23 @@
             "args": [
                 "--config",
                 "debug_gaussian5"
+            ]
+        },
+        {
+            "name": "Debug Schrödinger Bridge Inference",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--inference",
+                "--experiment_path",
+                "experiments/test_inference_01",
+                "--weight_epoch",
+                "3",
+                "--n_runs",
+                "5"
+            ]
         }
     ]
 }

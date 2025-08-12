@@ -19,9 +19,9 @@ class ExperimentConfig:
         self.seed = 42
 
         # ───── Experiment Info
-        self.project_name = "DSBM_N_BRIDGES_DEBUG"
-        self.experiment_dir = "experiments_debug"
-        self.experiment_name = "debug_leave_out_03"
+        self.project_name = "DSBM_N_BRIDGES"
+        self.experiment_dir = "experiments"
+        self.experiment_name = "test_inference_02"
 
         # ───── Data Parameters
         self.dim = 2
@@ -29,7 +29,7 @@ class ExperimentConfig:
         self.n_distributions = 4
         self.separation_train_test = True
         self.nb_points_test = 1000
-        self.leave_out_list = [1]
+        self.leave_out_list = []
 
         # ───── Dataset Configuration
         self.distributions = DistributionConfig(dim=self.dim)
@@ -39,8 +39,8 @@ class ExperimentConfig:
         self.first_coupling = "ind"
         self.sigma = 1
         self.num_simulation_steps = 80
-        self.nb_inner_opt_steps = 3000
-        self.nb_outer_iterations = 10
+        self.nb_inner_opt_steps = 3
+        self.nb_outer_iterations = 3
         self.eps = 1e-3
 
         # ───── EMA Parameters
@@ -51,7 +51,7 @@ class ExperimentConfig:
         # Warmup epoch
 
         self.warmup = True
-        self.warmup_nb_inner_opt_steps = 5000
+        self.warmup_nb_inner_opt_steps = 5
         self.warmup_epoch = 0
 
         # ───── Optimization
@@ -124,7 +124,7 @@ class ExperimentConfig:
 
         # ───── Debug
 
-        self.debug = True
+        self.debug = False
 
 
 class DistributionConfig:

@@ -17,7 +17,7 @@ import json
 
 class trainer_bridges(N_Bridges):
     def __init__(
-        self, config_classes, tracking_logger, logger, resume_train: bool = False
+        self, config_classes, tracking_logger, logger, resume_train: bool = False, inference = False,
     ):
         self.resume_train = resume_train
         self.tracking_logger = tracking_logger # WanDB
@@ -65,12 +65,13 @@ class trainer_bridges(N_Bridges):
             optimizer=optimizer,
             n_distribution=self.experiment_config.n_distributions,
             distributions=self.distribution_config.distributions,
-            tracking_logger = self.tracking_logger
+            tracking_logger = self.tracking_logger,
+            inference = inference
         )
 
-        if not self.resume_train:
+        if not self.resume_train and not inference:
             self.launch_experiment()
-        else:
+        elif self.resume_train:
             self.load_and_resume_training()
 
     def set_resume_flags(self):

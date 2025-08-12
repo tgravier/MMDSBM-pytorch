@@ -3,16 +3,17 @@ import importlib.util
 import inspect
 import shutil
 from pathlib import Path
+from typing import Optional
 
 
 def load_config(
-    config_name: str = None, experiment_path: str = None, resume_train: bool = False
+    config_name: str = None, experiment_path: str = None, resume_train: bool = False, inference : bool = False
 ):
     """
     Load configuration either from conf.conf_classes.<config_name> (normal mode)
     or from a saved config file inside experiment_path/conf/ (resume mode).
     """
-    if resume_train:
+    if resume_train or inference:
         # Load config from saved experiment folder
         exp_path = Path(experiment_path)
         conf_dir = exp_path / "conf"
@@ -138,85 +139,107 @@ def export_config_dict(config_classes):
     return config_dict
 
 
-def load_config_inference(config_name: str = None, experiment_path: str = None):
+def get_experiment_parameters(experiment_path: str):
     """
-    Load configuration for inference from:
-    - a config file inside experiment_path/conf/ (if experiment_path is provided), or
-    - from conf.conf_classes.<config_name> (if config_name is provided).
+    Récupère les paramètres clés depuis un dossier d'expérience.
 
-    Also creates an 'inference/' folder inside the experiment path to store outputs.
+    Args:
+        experiment_path: Chemin vers le dossier d'expérience (qui contient un sous-dossier conf/)
+
+    Returns:
+        dict: Dictionnaire contenant:
+            - experiment_folder: Chemin du dossier d'expérience
+            - sigma_inference: Sigma pour l'inférence
+            - sigma_train: Sigma pour l'entraînement
+            - num_simulation_steps: Nombre d'étapes de simulation
+            - model_name: Nom du modèle
+            - net_fwd_layers: Configuration des couches forward
+            - net_bwd_layers: Configuration des couches backward
+            - net_fwd_time_dim: Dimension temporelle forward
+            - net_bwd_time_dim: Dimension temporelle backward
+            - leave_out_list: Liste des indices de distributions à exclure
     """
-    if experiment_path:
-        # Load config from saved experiment folder
-        exp_path = Path(experiment_path)
-        conf_dir = exp_path / "conf"
-        py_files = list(conf_dir.glob("*.py"))
+    exp_path = Path(experiment_path)
+    conf_dir = exp_path / "conf"
 
-        if not py_files:
-            raise FileNotFoundError(f"No config .py file found in {conf_dir}")
+    # Vérifier que le dossier conf existe
+    if not conf_dir.exists():
+        raise FileNotFoundError(f"Le dossier conf/ n'existe pas dans {exp_path}")
 
-        config_file = py_files[0]
-        spec = importlib.util.spec_from_file_location("loaded_config", config_file)
-        loaded_module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(loaded_module)
+    # Chercher le fichier de configuration Python
+    py_files = list(conf_dir.glob("*.py"))
+    if not py_files:
+        raise FileNotFoundError(f"Aucun fichier .py trouvé dans {conf_dir}")
 
-        ExperimentConfigCls = getattr(loaded_module, "ExperimentConfig")
-    elif config_name:
-        # Load config from module path
-        module_path = f"conf.conf_classes.{config_name}"
-        try:
-            module = importlib.import_module(module_path)
-        except ModuleNotFoundError as e:
-            raise ImportError(
-                f"Could not import configuration module '{module_path}': {e}"
-            )
-        ExperimentConfigCls = getattr(module, "ExperimentConfig")
-        exp_path = Path(getattr(ExperimentConfigCls(), "experiment_dir")) / getattr(ExperimentConfigCls(), "experiment_name")
-    else:
-        raise ValueError("Either 'experiment_path' or 'config_name' must be provided.")
+    # Charger le module de configuration
+    config_file = py_files[0]
+    spec = importlib.util.spec_from_file_location("loaded_config", config_file)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Impossible de charger le module depuis {config_file}")
 
-    # Initialize config
+    loaded_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(loaded_module)
+
+    # Récupérer la classe ExperimentConfig
+    ExperimentConfigCls = getattr(loaded_module, "ExperimentConfig")
     experiment_cfg = ExperimentConfigCls()
-    distribution_cfg = experiment_cfg.distributions
-    experiment_cfg.distribution_cfg = distribution_cfg
 
-    # Create inference output directory
-    inference_dir = exp_path / "inference"
-    inference_dir.mkdir(parents=True, exist_ok=True)
+    # Extraire les paramètres demandés
+    params = {
+        "experiment_folder": str(exp_path),
+        "sigma_inference": getattr(experiment_cfg, "sigma_inference", None),
+        "sigma_train": getattr(experiment_cfg, "sigma", None),
+        "num_simulation_steps": getattr(experiment_cfg, "num_simulation_steps", None),
+        "model_name": getattr(experiment_cfg, "model_name", None),
+        "net_fwd_layers": getattr(experiment_cfg, "net_fwd_layers", None),
+        "net_bwd_layers": getattr(experiment_cfg, "net_bwd_layers", None),
+        "net_fwd_time_dim": getattr(experiment_cfg, "net_fwd_time_dim", None),
+        "net_bwd_time_dim": getattr(experiment_cfg, "net_bwd_time_dim", None),
+        "leave_out_list": getattr(experiment_cfg, "leave_out_list", None),
+    }
 
-    # Print and save summary
-    lines = []
-    lines.append("Loaded Inference Configuration:")
-    lines.append("-" * 35)
-    for name, value in inspect.getmembers(experiment_cfg):
-        if name.startswith("_") or inspect.ismethod(value) or inspect.isfunction(value):
-            continue
-        if name == "distributions":
-            lines.append(
-                f"{name:20}: DistributionConfig with {len(distribution_cfg.distributions)} distributions"
-            )
-        else:
-            lines.append(f"{name:20}: {value}")
-    lines.append("-" * 35)
+    return params
 
-    lines.append("Loaded Distribution Bridges:")
-    lines.append("-" * 35)
-    for dist in distribution_cfg.distributions:
-        dist_type = type(dist).__name__
-        dist_params = {
-            k: v
-            for k, v in vars(dist).items()
-            if not k.startswith("_") and not callable(v)
-        }
-        param_str = ", ".join(f"{k}={v}" for k, v in dist_params.items())
-        lines.append(f"{dist_type:15} | {param_str}")
-    lines.append("-" * 35)
 
-    print("\n" + "\n".join(lines) + "\n")
+def load_test_datasets(experiment_path: str):
+    """
+    Charge les datasets de test depuis le dossier d'expérience.
 
-    # Save to summary file inside inference folder
-    summary_path = inference_dir / "inference_summary.txt"
-    with open(summary_path, "w") as f:
-        f.write("\n".join(lines))
+    Args:
+        experiment_path: Chemin vers le dossier d'expérience
 
-    return experiment_cfg
+    Returns:
+        List[TimedDataset]: Liste des datasets de test chargés
+    """
+    import torch
+    from datasets.datasets import TimedDataset
+
+    exp_path = Path(experiment_path)
+    datasets_test_dir = exp_path / "datasets_test"
+
+    if not datasets_test_dir.exists():
+        raise FileNotFoundError(
+            f"Le dossier datasets_test/ n'existe pas dans {exp_path}"
+        )
+
+    # Chercher tous les fichiers .pt dans le dossier datasets_test
+    dataset_files = list(datasets_test_dir.glob("test_dataset_time_*.pt"))
+
+    if not dataset_files:
+        raise FileNotFoundError(
+            f"Aucun fichier de dataset de test trouvé dans {datasets_test_dir}"
+        )
+
+    # Charger et créer les TimedDataset
+    test_datasets = []
+    for file_path in sorted(dataset_files):  # Trier pour un ordre consistant
+        dataset_dict = torch.load(file_path, map_location="cpu", weights_only=True)
+
+        # Recréer le TimedDataset
+        timed_dataset = TimedDataset(
+            data=dataset_dict["data"], time=dataset_dict["time"]
+        )
+        test_datasets.append(timed_dataset)
+        print(f"Loaded test dataset for time {dataset_dict['time']} from {file_path}")
+
+    return test_datasets

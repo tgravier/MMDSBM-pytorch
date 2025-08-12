@@ -7,7 +7,6 @@ import random
 import numpy as np
 from typing import Tuple, Dict, List, Optional, Sequence
 import json
-from geomloss import SamplesLoss
 import wandb
 
 from bridge.core_dsbm import IMF_DSBM
@@ -36,11 +35,11 @@ class N_Bridges(IMF_DSBM):
         tracking_logger,
         n_distribution: int,
         distributions: Sequence[DatasetConfig],
+        inference: bool
     ):
         self.args = args
+        self.args.inference = inference
         
-
-
         self.net_fwd_ema = net_fwd_ema
         self.net_bwd_ema = net_bwd_ema
 
@@ -54,17 +53,19 @@ class N_Bridges(IMF_DSBM):
         self.n_distribution = n_distribution
         self.distributions = distributions
 
-        if self.args.separation_train_test:
+        if self.args.separation_train_test and not self.args.inference:
             self.datasets_train, self.datasets_test = self.prepare_dataset(
                 distributions, separation_train_test=self.args.separation_train_test
             )
             self.datasets_train = self.leave_out_datasets(self.datasets_train)
 
+            # Save test datasets to experiment directory
+            self.save_test_datasets()
 
         else:
             self.datasets_train = self.prepare_dataset(distributions)
-            self.datasets_train =self.leave_out_datasets(self.datasets_train)
-        
+            self.datasets_train = self.leave_out_datasets(self.datasets_train)
+
         self.min_time, self.max_time = self.min_max_time(self.datasets_train)
 
         super().__init__(
@@ -80,7 +81,7 @@ class N_Bridges(IMF_DSBM):
             sig=args.sigma,
             eps=args.eps,
         )
-    
+
     def leave_out_datasets(self, time_datasets_list):
         datasets_train_filtered = []
         for ds in time_datasets_list:
@@ -90,17 +91,11 @@ class N_Bridges(IMF_DSBM):
                 datasets_train_filtered.append(ds)
         return datasets_train_filtered
 
-    
-
     def min_max_time(self, datasets):
-
         max_time = max(float(ds.get_time()) for ds in datasets)
         min_time = min(float(ds.get_time()) for ds in datasets)
 
         return min_time, max_time
-
-
-
 
     def _validate_config_time_unique(
         self, distributions: List[DatasetConfig], mode: str
@@ -208,7 +203,7 @@ class N_Bridges(IMF_DSBM):
             print(f"\n[Epoch {outer_iter_idx}]")
 
             forward_pairs = list(zip(self.datasets_train[:-1], self.datasets_train[1:]))
-            
+
             if not (
                 skip_forward
                 and outer_iter_idx == self.args.resume_train_nb_outer_iterations
@@ -271,8 +266,6 @@ class N_Bridges(IMF_DSBM):
     ):
         device = next(net_dict[direction_tosample].parameters()).device
 
-
-
         min_idx = 0
         max_idx = -1
 
@@ -285,18 +278,15 @@ class N_Bridges(IMF_DSBM):
         idx = torch.randint(0, z0.shape[0], (num_samples,))
         z0_sampled = z0[idx]
 
-
         # Build t_pairs as tensor of shape (n_bridge, 2)
         t_pairs_datasets = torch.tensor(
             [
-            [datasets_inference[i].get_time(), datasets_inference[i + 1].get_time()]
-            for i in range(len(datasets_inference) - 1)
+                [datasets_inference[i].get_time(), datasets_inference[i + 1].get_time()]
+                for i in range(len(datasets_inference) - 1)
             ],
             dtype=torch.float32,
             device=device,
         )
-
-
 
         generated, time = inference_sample_sde(
             zstart=z0_sampled,
@@ -309,6 +299,47 @@ class N_Bridges(IMF_DSBM):
         )
 
         return generated, time
+
+    def save_test_datasets(self):
+        """
+        Save test datasets to the experiment directory when separation_train_test is enabled.
+        Each dataset is saved as a .pt file with the time value in the filename.
+        """
+        if not hasattr(self, "datasets_test") or self.datasets_test is None:
+            return
+
+        base_dir = os.path.join(self.args.experiment_dir, self.args.experiment_name)
+        datasets_test_dir = os.path.join(base_dir, "datasets_test")
+        os.makedirs(datasets_test_dir, exist_ok=True)
+
+        # Handle the case where datasets_test is a list of TimedDataset
+        if isinstance(self.datasets_test, list):
+            datasets_to_save = self.datasets_test
+        else:
+            datasets_to_save = [self.datasets_test]
+
+        for dataset in datasets_to_save:
+            # Check if dataset is a TimedDataset
+            if hasattr(dataset, "get_time") and hasattr(dataset, "get_all"):
+                time_value = dataset.get_time()
+                # Format time value to avoid issues with float precision in filename
+                time_str = f"{time_value:.6f}".replace(".", "_")
+                filename = f"test_dataset_time_{time_str}.pt"
+                filepath = os.path.join(datasets_test_dir, filename)
+
+                # Save the dataset data and time
+                dataset_dict = {
+                    "data": dataset.get_all(),
+                    "time": time_value,
+                    "length": len(dataset),
+                }
+
+                torch.save(dataset_dict, filepath)
+                print(f"Saved test dataset for time {time_value} to {filepath}")
+            else:
+                print(
+                    f"Warning: Dataset {dataset} is not a TimedDataset, skipping save."
+                )
 
     def save_networks(self, net_dict, direction_tosample: str, outer_iter_idx: int):
         base_dir = os.path.join(self.args.experiment_dir, self.args.experiment_name)
@@ -413,18 +444,14 @@ class N_Bridges(IMF_DSBM):
             args.save_networks and outer_iter_idx % args.save_networks_n_epoch == 0
         )
 
-
-
         # ───── Only run inference if needed
         if do_plot or do_swd or do_mmd or do_energy:
-
-
             datasets_for_generation = self.leave_out_datasets(datasets_inference)
             generated, time = self.inference_test(
                 args=args,
                 direction_tosample=direction_to_train,
                 net_dict=net_dict,
-                datasets_inference=datasets_for_generation, # We use datasets_for_generation to keep the good dt
+                datasets_inference=datasets_for_generation,  # We use datasets_for_generation to keep the good dt
                 outer_iter_idx=outer_iter_idx,
                 num_samples=args.num_sample_metric,
                 num_steps=args.num_simulation_steps,

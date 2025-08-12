@@ -104,7 +104,7 @@ def sample_sde(
         )
         for one_time_delta in proportions_of_total
     }
-    max_nb_steps = max(len(s) for s in steps.values()) - 1
+    max_nb_steps = max(len(s) for s in steps.values()) 
 
     # expend t_min and t_max to create the linspace
     t_min_exp = t_min.unsqueeze(1)  # shape [6000, 1]
@@ -126,11 +126,11 @@ def sample_sde(
             + (this_time_delta_t_max_exp - this_time_delta_t_min_exp)
             * steps[one_time_delta]
         )
-        if direction_tosample == "forward":
-            this_time_delta_ts = this_time_delta_ts[:, :-1]
+        # if direction_tosample == "forward":
+        #     this_time_delta_ts = this_time_delta_ts[:, :-1]
 
-        elif direction_tosample == "backward":
-            this_time_delta_ts = this_time_delta_ts[:, 1:]
+        # elif direction_tosample == "backward":
+        #     this_time_delta_ts = this_time_delta_ts[:, 1:]
         
 
 
