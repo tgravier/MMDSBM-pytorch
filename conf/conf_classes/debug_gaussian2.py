@@ -21,12 +21,12 @@ class ExperimentConfig:
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES"
         self.experiment_dir = "experiments_debug"
-        self.experiment_name = "debug_gaussian5_02"
+        self.experiment_name = "debug_gaussian3_02"
 
         # ───── Data Parameters
         self.dim = 2
         self.batch_size = 128
-        self.n_distributions = 4
+        self.n_distributions = 3
         self.separation_train_test = True
         self.nb_points_test = 1000
         self.leave_out_list = []
@@ -62,7 +62,7 @@ class ExperimentConfig:
 
         # --- Network General
 
-        self.model_name = "resnet"
+        self.model_name = "mlp"
 
         # ───── Network: Forward score model
 
@@ -155,11 +155,5 @@ class DistributionConfig:
                 n_samples=self.n_samples,
                 dim=self.dim,
             ),
-            GaussianConfig(
-                time=3,
-                mean=[1, 5],
-                std=[1, 1],
-                n_samples=self.n_samples,
-                dim=self.dim,
-            ),
+
         ]

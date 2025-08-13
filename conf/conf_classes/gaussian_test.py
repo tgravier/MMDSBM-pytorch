@@ -1,5 +1,9 @@
 from accelerate import Accelerator
-from datasets.datasets_registry import GaussianConfig, GaussianMixtureConfig, PhateFromTrajectoryConfig
+from datasets.datasets_registry import (
+    GaussianConfig,
+    GaussianMixtureConfig,
+    PhateFromTrajectoryConfig,
+)
 
 
 from accelerate import Accelerator
@@ -15,16 +19,17 @@ class ExperimentConfig:
         self.seed = 42
 
         # ───── Experiment Info
-        self.project_name = "DSBM_N_BRIDGES_DEBUG"
+        self.project_name = "DSBM_N_BRIDGES"
         self.experiment_dir = "experiments_debug"
-        self.experiment_name = "exemple_time_1_debug_01"
+        self.experiment_name = "debug_sde_gaussian_01"
 
         # ───── Data Parameters
         self.dim = 2
         self.batch_size = 128
         self.n_distributions = 2
-        self.separation_train_test = False
+        self.separation_train_test = True
         self.nb_points_test = 1000
+        self.leave_out_list = []
 
         # ───── Dataset Configuration
         self.distributions = DistributionConfig(dim=self.dim)
@@ -33,24 +38,21 @@ class ExperimentConfig:
 
         self.first_coupling = "ind"
         self.sigma = 1
-        self.num_simulation_steps = 15
-        self.nb_inner_opt_steps = 2000
+        self.num_simulation_steps = 80
+        self.nb_inner_opt_steps = 2500
         self.nb_outer_iterations = 5
         self.eps = 1e-3
-
 
         # ───── EMA Parameters
 
         self.ema = True
         self.decay_ema = 0.9999
 
-
         # Warmup epoch
 
         self.warmup = True
-        self.warmup_nb_inner_opt_steps = 2000
+        self.warmup_nb_inner_opt_steps = 5000
         self.warmup_epoch = 0
-
 
         # ───── Optimization
         self.lr = 2e-4
@@ -64,11 +66,17 @@ class ExperimentConfig:
 
         # ───── Network: Forward score model
 
-        self.net_fwd_layers = [128, 128,]
+        self.net_fwd_layers = [
+            128,
+            128,
+        ]
         self.net_fwd_time_dim = 64
 
         # ───── Network: Backward score model
-        self.net_bwd_layers = [128, 128,]
+        self.net_bwd_layers = [
+            128,
+            128,
+        ]
         self.net_bwd_time_dim = 64
 
         # ----- Inference
@@ -94,17 +102,15 @@ class ExperimentConfig:
         self.log_wandb_swd = True
         self.display_swd_n_epoch = 1
 
-    
         self.display_mmd = True
         self.log_wandb_mmd = True
         self.display_mmd_n_epoch = 1
         self.mmd_kernel = "rbf"  # Options: "gaussian", "laplacian", "energy", "rbf"
-        self.mmd_blur = 1.0 
-        
+        self.mmd_blur = 1.0
+
         self.display_energy = False
         self.log_wandb_energy = True
         self.display_energy_n_epoch = 1
-
 
         # ───── Save Networks
 
@@ -141,7 +147,7 @@ class DistributionConfig:
                 dim=2,),
 
                 GaussianConfig(
-                time=0.5,
+                time=1,
                 mean = [4,4],
                 std = [1,1],
                 n_samples=  self.n_samples,

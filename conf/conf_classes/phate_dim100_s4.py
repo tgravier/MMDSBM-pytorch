@@ -15,17 +15,17 @@ class ExperimentConfig:
         self.seed = 42
 
         # ───── Experiment Info
-        self.project_name = "DSBM_N_BRIDGES_PHATE"
-        self.experiment_dir = "experiments"
-        self.experiment_name = "s4dim_100_01_LOO_01d"
+        self.project_name = "DSBM_N_BRIDGES"
+        self.experiment_dir = "experiments_debug"
+        self.experiment_name = "debug_inference_test_06"
 
         # ───── Data Parameters
         self.dim = 100
-        self.batch_size = 128
+        self.batch_size = 256
         self.n_distributions = 5
         self.separation_train_test = True
         self.nb_points_test = 1000
-        self.leave_out_list = [1]
+        self.leave_out_list = []
 
         # ───── Dataset Configuration
         self.distributions = DistributionConfig(dim=self.dim)
@@ -33,23 +33,23 @@ class ExperimentConfig:
         # ───── Simulation Parameters
 
         self.first_coupling = "ind"
-        self.sigma = 1.5
+        self.sigma = 0.5
         self.num_simulation_steps = 60
-        self.nb_inner_opt_steps = 30000
-        self.nb_outer_iterations = 100
+        self.nb_inner_opt_steps = 50000
+        self.nb_outer_iterations = 20
         self.eps = 1e-3
 
 
         # ───── EMA Parameters
 
         self.ema = True
-        self.decay_ema = 0.9999
+        self.decay_ema = 0.999
 
 
         # Warmup epoch
 
         self.warmup = True
-        self.warmup_nb_inner_opt_steps = 125000
+        self.warmup_nb_inner_opt_steps = 100000
         self.warmup_epoch = 0
         # ───── Optimization
         self.lr = 2e-4
@@ -72,7 +72,7 @@ class ExperimentConfig:
 
         # ----- Inference
 
-        self.sigma_inference = 1.5
+        self.sigma_inference = 0.1
         self.num_sample_metric = 1000
 
         # ───── Visualisation
@@ -117,7 +117,7 @@ class ExperimentConfig:
 
         # ───── Debug
 
-        self.debug = False
+        self.debug = True
 
 
 

@@ -126,11 +126,11 @@ def sample_sde(
             + (this_time_delta_t_max_exp - this_time_delta_t_min_exp)
             * steps[one_time_delta]
         )
-        # if direction_tosample == "forward":
-        #     this_time_delta_ts = this_time_delta_ts[:, :-1]
+        if direction_tosample == "forward":
+            this_time_delta_ts = this_time_delta_ts[:, :-1]
 
-        # elif direction_tosample == "backward":
-        #     this_time_delta_ts = this_time_delta_ts[:, 1:]
+        elif direction_tosample == "backward":
+            this_time_delta_ts = this_time_delta_ts[:, 1:]
         
 
 

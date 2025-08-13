@@ -6,7 +6,7 @@ from typing import List
 
 # === Time Encoding (sinusoidal, non-learned) ===
 class TimeEncoding(nn.Module):
-    def __init__(self, time_dim: int, max_time: float = 1.0):
+    def __init__(self, time_dim: int, max_time):
         super().__init__()
         self.time_dim = time_dim
         self.max_time = max_time
@@ -30,7 +30,7 @@ class MLP(nn.Module):
         self,
         input_dim: int,
         time_dim: int,
-        layers_widths: List[int] = [100, 100, 2],
+        layers_widths: List[int],
         activation_fn=F.tanh,
     ):
         super().__init__()
@@ -67,9 +67,9 @@ class ScoreNetwork(nn.Module):
         self,
         input_dim: int,
         layers_widths: List[int],
-        activation_fn=F.tanh,
-        time_dim: int = 16,
-        max_time: float = 1.0,
+        activation_fn,
+        time_dim: int,
+        max_time: float,
     ):
         super().__init__()
         self.time_encoder = TimeEncoding(time_dim=time_dim, max_time=max_time)
@@ -84,63 +84,77 @@ class ScoreNetwork(nn.Module):
         t_encoded = self.time_encoder(t)
         return self.net(x_input, t_encoded)
 
+
 class ResidualBlock(nn.Module):
-    def __init__(self, hidden_dim: int, time_dim: int, activation_fn=F.tanh):
+    def __init__(self, input_dim: int, output_dim: int, time_dim: int, activation_fn):
         super().__init__()
         self.activation_fn = activation_fn
-        self.linear = nn.Linear(hidden_dim + hidden_dim, hidden_dim)
-        self.time_proj = nn.Linear(time_dim, hidden_dim)
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+
+        # Linear layer for input + time projection
+        self.linear = nn.Linear(input_dim + output_dim, output_dim)
+        # Time projection to match output_dim
+        self.time_proj = nn.Linear(time_dim, output_dim)
+
+        # Skip connection: always present, with projection if needed
+        if input_dim != output_dim:
+            self.skip_proj = nn.Linear(input_dim, output_dim)
+        else:
+            self.skip_proj = nn.Identity()
 
     def forward(self, x: torch.Tensor, t_encoded: torch.Tensor):
         t_proj = self.time_proj(t_encoded)
         out = torch.cat([x, t_proj], dim=-1)
         out = self.activation_fn(self.linear(out))
-        return x + out  # Connexion résiduelle
+        skip = self.skip_proj(x)
+        return skip + out
+
 
 class ResNetMLP(nn.Module):
     def __init__(
         self,
         input_dim: int,
         time_dim: int,
-        hidden_dim: int = 256,
-        num_blocks: int = 5,
+        layers_widths: List[int],
         activation_fn=F.tanh,
-        output_dim: int = 100,
     ):
         super().__init__()
-        self.input_layer = nn.Linear(input_dim, hidden_dim)
-        self.blocks = nn.ModuleList([
-            ResidualBlock(hidden_dim, time_dim, activation_fn)
-            for _ in range(num_blocks)
-        ])
-        self.output_layer = nn.Linear(hidden_dim, output_dim)
+        self.activation_fn = activation_fn
+        self.time_dim = time_dim
+        self.layers_widths = layers_widths
 
-    def forward(self, x: torch.Tensor, t_encoded: torch.Tensor):
-        x = self.input_layer(x)
-        for block in self.blocks:
+        self.blocks = nn.ModuleList()
+        prev_width = input_dim
+        for layer_width in layers_widths:
+            self.blocks.append(
+                ResidualBlock(prev_width, layer_width, time_dim, activation_fn)
+            )
+            prev_width = layer_width
+
+    def forward(self, x: torch.Tensor, t_encoded: torch.Tensor) -> torch.Tensor:
+        for i, block in enumerate(self.blocks[:-1]):
             x = block(x, t_encoded)
-        return self.output_layer(x)
+        # Dernière couche (output) - pas d'activation pour la sortie finale
+        return self.blocks[-1](x, t_encoded)
+
 
 class ScoreNetworkResNet(nn.Module):
     def __init__(
         self,
         input_dim: int,
-        hidden_dim: int = 128,
-        num_blocks: int = 4,
-        activation_fn=F.silu,
-        time_dim: int = 16,
-        max_time: float = 1.0,
-        output_dim: int = 2,
+        layers_widths: List[int],
+        activation_fn,
+        time_dim: int,
+        max_time: float,
     ):
         super().__init__()
         self.time_encoder = TimeEncoding(time_dim=time_dim, max_time=max_time)
         self.net = ResNetMLP(
             input_dim=input_dim,
             time_dim=time_dim,
-            hidden_dim=hidden_dim,
-            num_blocks=num_blocks,
+            layers_widths=layers_widths,
             activation_fn=activation_fn,
-            output_dim=output_dim,
         )
 
     def forward(self, x_input: torch.Tensor, t: torch.Tensor) -> torch.Tensor:

@@ -434,7 +434,7 @@ class N_Bridges(IMF_DSBM):
         )
 
         # ───── Determine what should be executed this iteration
-        do_plot = args.plot_vis and args.dim == 2
+        do_plot = args.plot_vis
         do_swd = args.display_swd and outer_iter_idx % args.display_swd_n_epoch == 0
         do_mmd = args.display_mmd and outer_iter_idx % args.display_mmd_n_epoch == 0
         do_energy = (

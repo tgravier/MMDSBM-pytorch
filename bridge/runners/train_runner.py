@@ -3,7 +3,11 @@
 from bridge.nbridges import N_Bridges
 from utils.tracking_logger import WandbLogger
 from conf.conf_loader import load_config
-from bridge.models.networks import ScoreNetwork, ScoreNetworkResNet, print_trainable_params
+from bridge.models.networks import (
+    ScoreNetwork,
+    ScoreNetworkResNet,
+    print_trainable_params,
+)
 from bridge.runners.ema import EMA
 
 import torch
@@ -17,10 +21,15 @@ import json
 
 class trainer_bridges(N_Bridges):
     def __init__(
-        self, config_classes, tracking_logger, logger, resume_train: bool = False, inference = False,
+        self,
+        config_classes,
+        tracking_logger,
+        logger,
+        resume_train: bool = False,
+        inference=False,
     ):
         self.resume_train = resume_train
-        self.tracking_logger = tracking_logger # WanDB
+        self.tracking_logger = tracking_logger  # WanDB
         self.logger = logger
 
         # Load and store config
@@ -30,27 +39,21 @@ class trainer_bridges(N_Bridges):
         self.instance_gpu_config()
 
         net_fwd, net_bwd = self.instance_network(
-            model_name = self.experiment_config.model_name,
+            model_name=self.experiment_config.model_name,
             net_fwd_layers=self.experiment_config.net_fwd_layers,
             net_fwd_time_dim=self.experiment_config.net_fwd_time_dim,
             net_bwd_layers=self.experiment_config.net_bwd_layers,
             net_bwd_time_dim=self.experiment_config.net_bwd_time_dim,
         )
 
-       
         self.net_fwd = net_fwd
         self.net_bwd = net_bwd
 
-
-
         if self.experiment_config.ema:
-
             self.net_fwd_ema, self.net_bwd_ema = self.instance_ema_config()
 
         optimizer = self.instance_optimizer(net_fwd, net_bwd)
         self.optimizer = optimizer
-
-        
 
         # === Initialiser les flags pour la reprise
         self.set_resume_flags()
@@ -60,13 +63,13 @@ class trainer_bridges(N_Bridges):
             args=self.experiment_config,
             net_fwd=net_fwd,
             net_bwd=net_bwd,
-            net_fwd_ema = self.net_fwd_ema,
-            net_bwd_ema = self.net_bwd_ema,
+            net_fwd_ema=self.net_fwd_ema,
+            net_bwd_ema=self.net_bwd_ema,
             optimizer=optimizer,
             n_distribution=self.experiment_config.n_distributions,
             distributions=self.distribution_config.distributions,
-            tracking_logger = self.tracking_logger,
-            inference = inference
+            tracking_logger=self.tracking_logger,
+            inference=inference,
         )
 
         if not self.resume_train and not inference:
@@ -83,20 +86,20 @@ class trainer_bridges(N_Bridges):
             self.experiment_config.previous_direction_to_train = "forward"  # default
 
     def instance_network(
-        self, model_name, net_fwd_layers, net_fwd_time_dim, net_bwd_layers, net_bwd_time_dim
-    ):  
-        
+        self,
+        model_name,
+        net_fwd_layers,
+        net_fwd_time_dim,
+        net_bwd_layers,
+        net_bwd_time_dim,
+    ):
         input_dim = self.experiment_config.dim
         max_time = max(
-            distribution.time
-            for distribution in self.distribution_config.distributions
+            distribution.time for distribution in self.distribution_config.distributions
         )
-
-
 
         activation = nn.SiLU()
         if model_name == "mlp":
-
             net_fwd = ScoreNetwork(
                 input_dim=input_dim,
                 layers_widths=net_fwd_layers + [input_dim],
@@ -113,31 +116,24 @@ class trainer_bridges(N_Bridges):
                 max_time=max_time,
             )
         elif model_name == "resnet":
-
-            net_fwd  = ScoreNetworkResNet(
+            net_fwd = ScoreNetworkResNet(
                 input_dim=input_dim,
-                hidden_dim=128,
+                layers_widths=net_fwd_layers + [input_dim],
                 activation_fn=activation,
-                num_blocks=5,
-                time_dim=16, 
-                output_dim=input_dim,
+                time_dim=net_fwd_time_dim,
                 max_time=max_time,
             )
 
-            net_bwd  = ScoreNetworkResNet(
+            net_bwd = ScoreNetworkResNet(
                 input_dim=input_dim,
-                hidden_dim=128,
-                num_blocks=5,
+                layers_widths=net_bwd_layers + [input_dim],
                 activation_fn=activation,
-                time_dim=16,
-                output_dim=input_dim,  
+                time_dim=net_bwd_time_dim,
                 max_time=max_time,
             )
 
         print_trainable_params(net_fwd, "net_fwd")
         print_trainable_params(net_bwd, "net_bwd")
-
-
 
         return net_fwd, net_bwd
 
@@ -163,11 +159,10 @@ class trainer_bridges(N_Bridges):
         gpu_id = self.experiment_config.gpu_id
         os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
         print("Using device:", self.experiment_config.accelerator.device)
-    
-    def instance_ema_config(self):
 
-        net_fwd_ema = EMA(self.net_fwd, decay = self.experiment_config.decay_ema)
-        net_bwd_ema = EMA(self.net_fwd, decay = self.experiment_config.decay_ema)
+    def instance_ema_config(self):
+        net_fwd_ema = EMA(self.net_fwd, decay=self.experiment_config.decay_ema)
+        net_bwd_ema = EMA(self.net_fwd, decay=self.experiment_config.decay_ema)
 
         return net_fwd_ema, net_bwd_ema
 
@@ -255,4 +250,3 @@ class trainer_bridges(N_Bridges):
 
         # Start training loop
         self.launch_experiment()
-

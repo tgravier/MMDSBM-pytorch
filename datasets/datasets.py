@@ -153,6 +153,7 @@ def load_dataset(
         if "pcs" not in data_npz:
             raise ValueError(f"File '{path}' must contain key 'pcs'.")
         pcs = data_npz["pcs"]
+        pcs = pcs[:,:dim]
         if separation_train_test:
             data_train, data_test = random_split(torch.tensor(pcs, dtype=torch.float32), nb_points_test)
             return (
