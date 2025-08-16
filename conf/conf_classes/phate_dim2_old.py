@@ -15,13 +15,13 @@ class ExperimentConfig:
         self.seed = 42
 
         # ───── Experiment Info
-        self.project_name = "DSBM_N_BRIDGES"
-        self.experiment_dir = "experiments_debug"
-        self.experiment_name = "phate_sigma_d2_02"
+        self.project_name = "DSBM_N_BRIDGES_PHATE"
+        self.experiment_dir = "experiments"
+        self.experiment_name = "dim2_norms2_04"
 
         # ───── Data Parameters
         self.dim = 2
-        self.batch_size = 128
+        self.batch_size = 512
         self.n_distributions = 5
         self.separation_train_test = True
         self.nb_points_test = 1000
@@ -33,19 +33,16 @@ class ExperimentConfig:
         # ───── Simulation Parameters
 
         self.first_coupling = "ind"
-        self.sigma = 1
-        self.num_simulation_steps = 60
-        self.nb_inner_opt_steps = 2500
-        self.nb_outer_iterations = 100
+        self.sigma = 0.7
+        self.num_simulation_steps = 80*4
+        self.nb_inner_opt_steps = 10000
+        self.nb_outer_iterations = 10
         self.eps = 1e-3
-
 
         # ───── EMA Parameters
 
         self.ema = True
-        self.decay_ema = 0.9999
-
-
+        self.decay_ema = 0.999
         # Warmup epoch
 
         self.warmup = True
@@ -57,24 +54,22 @@ class ExperimentConfig:
         self.optimizer_type = "adam"
         self.optimizer_params = {"betas": (0.9, 0.999), "weight_decay": 0.0}
 
-        # --- Network General
+        # ----  Network : General
 
-        self.model_name = "mlp"
+        self.model_name = "resnet"
 
         # ───── Network: Forward score model
-
         self.net_fwd_layers = [256, 256,]
         self.net_fwd_time_dim = 128
 
         # ───── Network: Backward score model
-        self.net_bwd_layers = [256, 256,]
+        self.net_bwd_layers = [256, 256]
         self.net_bwd_time_dim = 128
 
         # ----- Inference
 
         self.sigma_inference = self.sigma
         self.num_sample_metric = 1000
-
         # ───── Visualisation
         self.fps = 20
 
@@ -117,40 +112,40 @@ class ExperimentConfig:
 
         # ───── Debug
 
-        self.debug = True
+        self.debug = False
 
 
 
 class DistributionConfig:
-    def __init__(self, dim:int, n_samples: int = 2381):
+    def __init__(self, dim: int = 2, n_samples: int = 1000):
         self.dim = dim
 
 
-        self.distributions = [
+        self.distributions= [
             PhateFromTrajectoryConfig(
                 time=0,
-                dim=dim,
-                file_path="datasets/data/phate_multi_dim/pcs_label_0.npz",
+                dim=2,
+                file_path="datasets/data/phate_dim2/pcs_label_0_dim_2.npz",
             ),
 
                         PhateFromTrajectoryConfig(
                 time=1,
-                dim=dim,
-                file_path="datasets/data/phate_multi_dim/pcs_label_1.npz",
+                dim=2,
+                file_path="datasets/data/phate_dim2/pcs_label_1_dim_2.npz",
             ),
                         PhateFromTrajectoryConfig(
                 time=2,
-                dim=dim,
-                file_path="datasets/data/phate_multi_dim/pcs_label_2.npz",
+                dim=2,
+                file_path="datasets/data/phate_dim2/pcs_label_2_dim_2.npz",
             ),
                         PhateFromTrajectoryConfig(
                 time=3,
-                dim=dim,
-                file_path="datasets/data/phate_multi_dim/pcs_label_3.npz",
+                dim=2,
+                file_path="datasets/data/phate_dim2/pcs_label_3_dim_2.npz",
             ),
                         PhateFromTrajectoryConfig(
                 time=4,
-                dim=dim,
-                file_path="datasets/data/phate_multi_dim/pcs_label_4.npz",
+                dim=2,
+                file_path="datasets/data/phate_dim2/pcs_label_4_dim_2.npz",
             ),
         ]

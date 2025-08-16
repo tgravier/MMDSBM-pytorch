@@ -21,7 +21,7 @@ class ExperimentConfig:
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES"
         self.experiment_dir = "experiments_debug"
-        self.experiment_name = "debug_gaussian5_02"
+        self.experiment_name = "debug_gaussian5_03"
 
         # ───── Data Parameters
         self.dim = 2
@@ -37,11 +37,11 @@ class ExperimentConfig:
         # ───── Simulation Parameters
 
         self.first_coupling = "ind"
-        self.sigma = 1
+        self.sigma = 4
         self.num_simulation_steps = 80
-        self.nb_inner_opt_steps = 10000
+        self.nb_inner_opt_steps = 1000
         self.nb_outer_iterations = 5
-        self.eps = 1e-3
+        self.eps = 1e-5
 
         # ───── EMA Parameters
 
@@ -51,18 +51,18 @@ class ExperimentConfig:
         # Warmup epoch
 
         self.warmup = True
-        self.warmup_nb_inner_opt_steps = 10000
+        self.warmup_nb_inner_opt_steps = 2000
         self.warmup_epoch = 0
 
         # ───── Optimization
-        self.lr = 2e-4
+        self.lr = 2e-3
         self.grad_clip = 20
         self.optimizer_type = "adam"
         self.optimizer_params = {"betas": (0.9, 0.999), "weight_decay": 0.0}
 
         # --- Network General
 
-        self.model_name = "resnet"
+        self.model_name = "mlp"
 
         # ───── Network: Forward score model
 
@@ -81,7 +81,7 @@ class ExperimentConfig:
 
         # ----- Inference
 
-        self.sigma_inference = 1
+        self.sigma_inference = self.sigma
         self.num_sample_metric = 1000
 
         # ───── Visualisation

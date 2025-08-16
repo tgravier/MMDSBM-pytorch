@@ -503,6 +503,19 @@ class N_Bridges(IMF_DSBM):
                         },
                         step=outer_iter_idx,
                     )
+            
+            # Remove the first element and compute the mean over the second dimension
+            if len(swd_scores) > 1:
+                swd_values = [swd for _, swd in swd_scores[1:]]
+                swd_mean = float(np.mean(swd_values))
+                print(f"[SWD MEAN] = {swd_mean:.4f}")
+                self.tracking_logger.log(
+                    {
+                        f"swd_mean/{direction_to_train}/epoch": swd_mean,
+                        "epoch": outer_iter_idx,
+                    },
+                    step=outer_iter_idx,
+                )
 
             if args.dim <= 3:
                 wd_scores = evaluate_wd_over_time(

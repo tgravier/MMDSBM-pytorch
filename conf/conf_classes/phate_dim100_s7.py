@@ -17,11 +17,11 @@ class ExperimentConfig:
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES"
         self.experiment_dir = "experiments_debug"
-        self.experiment_name = "phate_sigma_d2_02"
+        self.experiment_name = "phate_dim100_s8_sigma_16"
 
         # ───── Data Parameters
-        self.dim = 2
-        self.batch_size = 128
+        self.dim = 100
+        self.batch_size = 256
         self.n_distributions = 5
         self.separation_train_test = True
         self.nb_points_test = 1000
@@ -33,23 +33,23 @@ class ExperimentConfig:
         # ───── Simulation Parameters
 
         self.first_coupling = "ind"
-        self.sigma = 1
-        self.num_simulation_steps = 60
-        self.nb_inner_opt_steps = 2500
-        self.nb_outer_iterations = 100
+        self.sigma = 1.60
+        self.num_simulation_steps = 120
+        self.nb_inner_opt_steps = 25000
+        self.nb_outer_iterations = 20
         self.eps = 1e-3
 
 
         # ───── EMA Parameters
 
         self.ema = True
-        self.decay_ema = 0.9999
+        self.decay_ema = 0.999
 
 
         # Warmup epoch
 
         self.warmup = True
-        self.warmup_nb_inner_opt_steps = 5000
+        self.warmup_nb_inner_opt_steps = 100000
         self.warmup_epoch = 0
         # ───── Optimization
         self.lr = 2e-4
@@ -59,7 +59,7 @@ class ExperimentConfig:
 
         # --- Network General
 
-        self.model_name = "mlp"
+        self.model_name = "resnet"
 
         # ───── Network: Forward score model
 
@@ -122,7 +122,7 @@ class ExperimentConfig:
 
 
 class DistributionConfig:
-    def __init__(self, dim:int, n_samples: int = 2381):
+    def __init__(self, dim:int, n_samples=None):
         self.dim = dim
 
 

@@ -15,13 +15,13 @@ class ExperimentConfig:
         self.seed = 42
 
         # ───── Experiment Info
-        self.project_name = "DSBM_N_BRIDGES"
+        self.project_name = "DSBM_N_BRIDGES_PHATE"
         self.experiment_dir = "experiments_debug"
-        self.experiment_name = "phate_sigma_d2_02"
+        self.experiment_name = "dim100_norms2_06"
 
         # ───── Data Parameters
-        self.dim = 2
-        self.batch_size = 128
+        self.dim = 100
+        self.batch_size = 512
         self.n_distributions = 5
         self.separation_train_test = True
         self.nb_points_test = 1000
@@ -33,19 +33,16 @@ class ExperimentConfig:
         # ───── Simulation Parameters
 
         self.first_coupling = "ind"
-        self.sigma = 1
-        self.num_simulation_steps = 60
-        self.nb_inner_opt_steps = 2500
-        self.nb_outer_iterations = 100
+        self.sigma = 0.35
+        self.num_simulation_steps = 160
+        self.nb_inner_opt_steps = 10000
+        self.nb_outer_iterations = 10
         self.eps = 1e-3
-
 
         # ───── EMA Parameters
 
         self.ema = True
-        self.decay_ema = 0.9999
-
-
+        self.decay_ema = 0.999
         # Warmup epoch
 
         self.warmup = True
@@ -57,24 +54,22 @@ class ExperimentConfig:
         self.optimizer_type = "adam"
         self.optimizer_params = {"betas": (0.9, 0.999), "weight_decay": 0.0}
 
-        # --- Network General
+        # ----  Network : General
 
-        self.model_name = "mlp"
+        self.model_name = "resnet"
 
         # ───── Network: Forward score model
-
-        self.net_fwd_layers = [256, 256,]
-        self.net_fwd_time_dim = 128
+        self.net_fwd_layers = [64, 64,]
+        self.net_fwd_time_dim = 64
 
         # ───── Network: Backward score model
-        self.net_bwd_layers = [256, 256,]
-        self.net_bwd_time_dim = 128
+        self.net_bwd_layers = [64, 64,]
+        self.net_bwd_time_dim = 64
 
         # ----- Inference
 
         self.sigma_inference = self.sigma
         self.num_sample_metric = 1000
-
         # ───── Visualisation
         self.fps = 20
 
@@ -120,9 +115,8 @@ class ExperimentConfig:
         self.debug = True
 
 
-
 class DistributionConfig:
-    def __init__(self, dim:int, n_samples: int = 2381):
+    def __init__(self, dim:int, n_samples=None):
         self.dim = dim
 
 
