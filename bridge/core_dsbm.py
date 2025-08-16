@@ -22,8 +22,8 @@ class IMF_DSBM:
     def __init__(
         self,
         args,
-        min_time:float,
-        max_time:float,
+        min_time: float,
+        max_time: float,
         num_simulation_steps: int,
         net_fwd: nn.Module,
         net_bwd: nn.Module,
@@ -81,7 +81,7 @@ class IMF_DSBM:
         dataset = TensorDataset(
             *self.generate_dataloaders(
                 args=self.args,
-                x_pairs=x_pairs,  
+                x_pairs=x_pairs,
                 t_pairs=t_pairs,
                 direction_to_train=direction,
                 outer_iter_idx=outer_iter_idx,
@@ -139,15 +139,23 @@ class IMF_DSBM:
                 self.args, z_pairs, t_tensor, direction
             )
 
+            if self.args.loss_scale:
+                if direction == "forward":
+                    loss_scale = self.sig * torch.sqrt(t)
 
+                elif direction == "backward":
+                    loss_scale = self.sig * torch.sqrt(self.max_time - t)
+
+            else:
+                loss_scale = 1
 
             # 3. get net prediction
 
             pred = self.net_dict[direction](x_bridge_t, t)
 
             # 4. compute loss, backward, and optim step
-            loss = (target - pred).view(pred.shape[0], -1).abs().pow(2).sum(dim=1)
-            loss = loss.mean()
+            loss = F.mse_loss(loss_scale * pred, loss_scale * target)
+
             self.optimizer[direction].zero_grad()
             self.accelerator.backward(loss)
 
@@ -163,11 +171,13 @@ class IMF_DSBM:
                 self.net_dict[direction].parameters(), self.args.grad_clip
             )
             self.optimizer[direction].step()
-            if outer_iter_idx == 0 and inner_opt_step == self.args.warmup_nb_inner_opt_steps-1:
-
+            if (
+                outer_iter_idx == 0
+                and inner_opt_step == self.args.warmup_nb_inner_opt_steps - 1
+            ):
                 self.ema_dict[direction].ema_model.load_state_dict(
                     self.net_dict[direction].state_dict()
-                                                                    )
+                )
 
             self.ema_dict[direction].update(self.net_dict[direction])
 
@@ -192,10 +202,8 @@ class IMF_DSBM:
         outer_iter_idx: int,
         first_coupling=None,
     ):
-        if (
-            outer_iter_idx <= self.args.warmup_epoch
-        ): 
-            if direction_to_train == "forward": 
+        if outer_iter_idx <= self.args.warmup_epoch:
+            if direction_to_train == "forward":
                 if first_coupling == "ref":
                     zstart = x_pairs[:, 0]
                     zend = (

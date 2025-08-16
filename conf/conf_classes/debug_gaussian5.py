@@ -21,7 +21,7 @@ class ExperimentConfig:
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES"
         self.experiment_dir = "experiments_debug"
-        self.experiment_name = "debug_gaussian5_03"
+        self.experiment_name = "debug_gaussian5_05"
 
         # ───── Data Parameters
         self.dim = 2
@@ -37,11 +37,12 @@ class ExperimentConfig:
         # ───── Simulation Parameters
 
         self.first_coupling = "ind"
-        self.sigma = 4
+        self.sigma = 0.1
         self.num_simulation_steps = 80
         self.nb_inner_opt_steps = 1000
         self.nb_outer_iterations = 5
         self.eps = 1e-5
+        self.loss_scale = True
 
         # ───── EMA Parameters
 

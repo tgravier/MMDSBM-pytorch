@@ -17,7 +17,7 @@ class ExperimentConfig:
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES"
         self.experiment_dir = "experiments_debug"
-        self.experiment_name = "phate_dim100_s8_sigma_16"
+        self.experiment_name = "phate_loss_scale"
 
         # ───── Data Parameters
         self.dim = 100
@@ -33,11 +33,12 @@ class ExperimentConfig:
         # ───── Simulation Parameters
 
         self.first_coupling = "ind"
-        self.sigma = 1.60
+        self.sigma = 0.30
         self.num_simulation_steps = 120
-        self.nb_inner_opt_steps = 25000
+        self.nb_inner_opt_steps = 5000
         self.nb_outer_iterations = 20
         self.eps = 1e-3
+        self.loss_scale = True
 
 
         # ───── EMA Parameters
@@ -49,7 +50,7 @@ class ExperimentConfig:
         # Warmup epoch
 
         self.warmup = True
-        self.warmup_nb_inner_opt_steps = 100000
+        self.warmup_nb_inner_opt_steps = 5000
         self.warmup_epoch = 0
         # ───── Optimization
         self.lr = 2e-4
