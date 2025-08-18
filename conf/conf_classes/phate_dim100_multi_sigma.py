@@ -15,9 +15,9 @@ class ExperimentConfig:
         self.seed = 42
 
         # ───── Experiment Info
-        self.project_name = "DSBM_N_BRIDGES_PHATE"
+        self.project_name = "DSBM_N_BRIDGES"
         self.experiment_dir = "experiments_debug"
-        self.experiment_name = "debug_coeff_sigma_02"
+        self.experiment_name = "phate_multi_sig_03"
 
         # ───── Data Parameters
         self.dim = 100
@@ -33,27 +33,25 @@ class ExperimentConfig:
         # ───── Simulation Parameters
 
         self.first_coupling = "ind"
-        self.sigma = [30, 30]
-        self.sigma_mode = "multi_dim"
-        self.sigma_linspace = "final"
-        self.coeff_sigma = 1.2
-        self.num_simulation_steps = 120
-        self.nb_inner_opt_steps = 2
-        self.nb_outer_iterations = 50
+        # self.sigma = [0.58, 0.83, 0.98, 1.06, 1.39]
+        self.sigma = [0.58, 0.83, 0.98, 1.06, 1.39]
+        self.num_simulation_steps = 60
+        self.nb_inner_opt_steps = 10000
+        self.nb_outer_iterations = 20
         self.eps = 1e-3
-        self.loss_scale = True
+        self.loss_scale = False
 
 
         # ───── EMA Parameters
 
         self.ema = True
-        self.decay_ema = 0.99
+        self.decay_ema = 0.9999
 
 
         # Warmup epoch
 
         self.warmup = True
-        self.warmup_nb_inner_opt_steps = 5
+        self.warmup_nb_inner_opt_steps = 10000
         self.warmup_epoch = 0
         # ───── Optimization
         self.lr = 2e-4
@@ -63,7 +61,7 @@ class ExperimentConfig:
 
         # --- Network General
 
-        self.model_name = "mlp"
+        self.model_name = "resnet"
 
         # ───── Network: Forward score model
 

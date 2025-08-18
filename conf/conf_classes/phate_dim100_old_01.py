@@ -17,12 +17,12 @@ class ExperimentConfig:
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES_PHATE"
         self.experiment_dir = "experiments_debug"
-        self.experiment_name = "debug_coeff_sigma_02"
+        self.experiment_name = "dim100_01_04"
 
         # ───── Data Parameters
         self.dim = 100
         self.batch_size = 512
-        self.n_distributions = 5
+        self.n_distributions = 2
         self.separation_train_test = True
         self.nb_points_test = 1000
         self.leave_out_list = []
@@ -33,27 +33,26 @@ class ExperimentConfig:
         # ───── Simulation Parameters
 
         self.first_coupling = "ind"
-        self.sigma = [30, 30]
+        self.sigma = [0.526, 0.821]
         self.sigma_mode = "multi_dim"
-        self.sigma_linspace = "final"
-        self.coeff_sigma = 1.2
-        self.num_simulation_steps = 120
-        self.nb_inner_opt_steps = 2
-        self.nb_outer_iterations = 50
+        self.sigma_linspace = "linear"
+        self.num_simulation_steps = 60
+        self.nb_inner_opt_steps = 5000
+        self.nb_outer_iterations = 20
         self.eps = 1e-3
-        self.loss_scale = True
+        self.loss_scale = False
 
 
         # ───── EMA Parameters
 
         self.ema = True
-        self.decay_ema = 0.99
+        self.decay_ema = 0.9999
 
 
         # Warmup epoch
 
         self.warmup = True
-        self.warmup_nb_inner_opt_steps = 5
+        self.warmup_nb_inner_opt_steps = 10000
         self.warmup_epoch = 0
         # ───── Optimization
         self.lr = 2e-4
@@ -63,7 +62,7 @@ class ExperimentConfig:
 
         # --- Network General
 
-        self.model_name = "mlp"
+        self.model_name = "resnet"
 
         # ───── Network: Forward score model
 
@@ -124,7 +123,6 @@ class ExperimentConfig:
         self.debug = True
 
 
-
 class DistributionConfig:
     def __init__(self, dim:int, n_samples=None):
         self.dim = dim
@@ -141,20 +139,5 @@ class DistributionConfig:
                 time=1,
                 dim=dim,
                 file_path="datasets/data/phate_multi_dim/pcs_label_1.npz",
-            ),
-                        PhateFromTrajectoryConfig(
-                time=2,
-                dim=dim,
-                file_path="datasets/data/phate_multi_dim/pcs_label_2.npz",
-            ),
-                        PhateFromTrajectoryConfig(
-                time=3,
-                dim=dim,
-                file_path="datasets/data/phate_multi_dim/pcs_label_3.npz",
-            ),
-                        PhateFromTrajectoryConfig(
-                time=4,
-                dim=dim,
-                file_path="datasets/data/phate_multi_dim/pcs_label_4.npz",
             ),
         ]

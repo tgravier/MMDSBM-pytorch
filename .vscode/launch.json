@@ -9,7 +9,7 @@
             "console": "integratedTerminal",
             "args": [
                 "--config",
-                "phate_dim100_s5"
+                "phate_dim100_s8"
             ]
         },
         {

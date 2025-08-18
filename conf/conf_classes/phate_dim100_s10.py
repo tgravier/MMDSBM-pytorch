@@ -17,7 +17,7 @@ class ExperimentConfig:
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES_PHATE"
         self.experiment_dir = "experiments_debug"
-        self.experiment_name = "debug_coeff_sigma_02"
+        self.experiment_name = "phate_multi_sigma_dim_08"
 
         # ───── Data Parameters
         self.dim = 100
@@ -36,10 +36,9 @@ class ExperimentConfig:
         self.sigma = [30, 30]
         self.sigma_mode = "multi_dim"
         self.sigma_linspace = "final"
-        self.coeff_sigma = 1.2
         self.num_simulation_steps = 120
-        self.nb_inner_opt_steps = 2
-        self.nb_outer_iterations = 50
+        self.nb_inner_opt_steps = 10000
+        self.nb_outer_iterations = 20
         self.eps = 1e-3
         self.loss_scale = True
 
@@ -47,14 +46,14 @@ class ExperimentConfig:
         # ───── EMA Parameters
 
         self.ema = True
-        self.decay_ema = 0.99
+        self.decay_ema = 0.9999
 
 
         # Warmup epoch
 
         self.warmup = True
-        self.warmup_nb_inner_opt_steps = 5
-        self.warmup_epoch = 0
+        self.warmup_nb_inner_opt_steps = 10000
+        self.warmup_epoch = 5000
         # ───── Optimization
         self.lr = 2e-4
         self.grad_clip = 20
@@ -134,27 +133,27 @@ class DistributionConfig:
             PhateFromTrajectoryConfig(
                 time=0,
                 dim=dim,
-                file_path="datasets/data/phate_multi_dim/pcs_label_0.npz",
+                file_path="datasets/data/phate_multi_dim_nn/pcs_label_0.npz",
             ),
 
                         PhateFromTrajectoryConfig(
                 time=1,
                 dim=dim,
-                file_path="datasets/data/phate_multi_dim/pcs_label_1.npz",
+                file_path="datasets/data/phate_multi_dim_nn/pcs_label_1.npz",
             ),
                         PhateFromTrajectoryConfig(
                 time=2,
                 dim=dim,
-                file_path="datasets/data/phate_multi_dim/pcs_label_2.npz",
+                file_path="datasets/data/phate_multi_dim_nn/pcs_label_2.npz",
             ),
                         PhateFromTrajectoryConfig(
                 time=3,
                 dim=dim,
-                file_path="datasets/data/phate_multi_dim/pcs_label_3.npz",
+                file_path="datasets/data/phate_multi_dim_nn/pcs_label_3.npz",
             ),
                         PhateFromTrajectoryConfig(
                 time=4,
                 dim=dim,
-                file_path="datasets/data/phate_multi_dim/pcs_label_4.npz",
+                file_path="datasets/data/phate_multi_dim_nn/pcs_label_4.npz",
             ),
         ]

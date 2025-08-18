@@ -21,7 +21,7 @@ class ExperimentConfig:
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES"
         self.experiment_dir = "experiments_debug"
-        self.experiment_name = "debug_gaussian5_05"
+        self.experiment_name = "debug_gaussian5_06"
 
         # ───── Data Parameters
         self.dim = 2
@@ -37,7 +37,8 @@ class ExperimentConfig:
         # ───── Simulation Parameters
 
         self.first_coupling = "ind"
-        self.sigma = 0.1
+        self.sigma = [1, 1, 1, 1.5]
+        self.loss_scale = True
         self.num_simulation_steps = 80
         self.nb_inner_opt_steps = 1000
         self.nb_outer_iterations = 5
@@ -52,7 +53,7 @@ class ExperimentConfig:
         # Warmup epoch
 
         self.warmup = True
-        self.warmup_nb_inner_opt_steps = 2000
+        self.warmup_nb_inner_opt_steps = 1000
         self.warmup_epoch = 0
 
         # ───── Optimization

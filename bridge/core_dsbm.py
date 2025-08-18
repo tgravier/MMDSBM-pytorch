@@ -135,16 +135,16 @@ class IMF_DSBM:
             z_pairs = torch.stack([z0, z1], dim=1).to(self.device)
 
             # 2. get Brownian bridge
-            x_bridge_t, t, target = sampler.get_brownian_bridge(
+            x_bridge_t, t, target, sigma = sampler.get_brownian_bridge(
                 self.args, z_pairs, t_tensor, direction
             )
 
             if self.args.loss_scale:
                 if direction == "forward":
-                    loss_scale = self.sig * torch.sqrt(t)
+                    loss_scale = sigma * torch.sqrt(t)
 
                 elif direction == "backward":
-                    loss_scale = self.sig * torch.sqrt(self.max_time - t)
+                    loss_scale = sigma * torch.sqrt(self.max_time - t)
 
             else:
                 loss_scale = 1
@@ -256,6 +256,7 @@ class IMF_DSBM:
                     raise ValueError(f"Unknown direction: {direction_to_train}")
 
             zend = sampler.sample_sde(  # TODO see sample SDE
+                args,
                 zstart=zstart,
                 t_pairs=t_pairs,
                 full_traj_tmin=self.min_time,
@@ -263,7 +264,6 @@ class IMF_DSBM:
                 net_dict=self.net_dict,
                 direction_tosample=previous_direction,
                 N=self.args.num_simulation_steps,
-                sig=self.args.sigma,
                 device=self.accelerator.device,
             )
 

@@ -33,6 +33,10 @@ class TimedDataset(Dataset):
 
     def get_all(self):
         return self.data
+    
+    def get_variance(self):
+
+        return self.data.var(dim=0, unbiased=False)
 
     def __repr__(self):
         return f"TimedDataset(len={len(self)}, time={self.time})"

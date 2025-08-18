@@ -40,6 +40,7 @@ def get_brownian_bridge(
     t2 = t2.unsqueeze(1)
 
     # Sample t uniformly in (t1 + eps, t2 - eps) to avoid sqrt(0) issues
+
     t = torch.rand((z0.shape[0], 1), device=device)
 
     t = t1 + (t2 - t1) * ((1 - 2 * args.eps) * t + args.eps)
@@ -47,35 +48,79 @@ def get_brownian_bridge(
     # Normalize time to [0, 1] as s = (t - t1) / (t2 - t1)
     s = (t - t1) / (t2 - t1)
 
+    t_pairs_bridges = args.t_pairs_bridges
+    # Determine sigma: if it's a float, use as is; if it's a sequence, select per sample
+    if args.sigma_mode == "mono":
+        sigma = args.sigma
+    elif args.sigma_mode == "multi":
+        sigma = torch.zeros_like(t1)
+        # Assume args.sigma is a tensor or list with shape [batch] or broadcastable
+        if direction == "forward":
+            for i, (start, end) in enumerate(t_pairs_bridges):
+                mask = (t >= start) & (t < end)
+                sigma[mask] = args.sigma[i + 1]
+
+        elif direction == "backward":
+            for i, (start, end) in enumerate(t_pairs_bridges):
+                mask = (t > start) & (t <= end)
+                sigma[mask] = args.sigma[i]
+
+    elif args.sigma_mode == "multi_dim":
+        sigma = torch.zeros_like(z0)
+
+        if direction == "forward":
+            for i, (start, end) in enumerate(t_pairs_bridges):
+                mask = (t >= start) & (t < end)
+                indices = torch.where(mask.squeeze())[0]
+
+                if args.sigma_linspace == "final":
+                    sigma[indices, :] = args.sigma_tensor_list[i + 1, :].unsqueeze(0)
+                elif args.sigma_linspace == "linear":
+                    sigma[indices, :] = (1 - s[indices]) * args.sigma_tensor_list[
+                        i, :
+                    ].unsqueeze(0) + s[indices] * args.sigma_tensor_list[i + 1, :].unsqueeze(0)
+
+        elif direction == "backward":
+            for i, (start, end) in enumerate(t_pairs_bridges):
+                mask = (t >= start) & (t < end)
+                indices = torch.where(mask.squeeze())[0]
+
+                if args.sigma_linspace == "final":
+                    sigma[indices, :] = args.sigma_tensor_list[i, :].unsqueeze(0)
+                elif args.sigma_linspace == "linear":
+                    sigma[indices, :] = (1 - s[indices]) * args.sigma_tensor_list[
+                        i, :
+                    ].unsqueeze(0) + s[indices] * args.sigma_tensor_list[i + 1, :].unsqueeze(0)
+
     # Compute the mean of the Brownian bridge at time t
     z_t = (1 - s) * z0 + s * z1
 
     # Sample standard Gaussian noise
     z = torch.randn_like(z_t, device=device)
-
+    sigma = args.coeff_sigma * sigma
     # Add the stochastic part of the Brownian bridge
-    z_t = z_t + args.sigma * torch.sqrt(s * (1 - s)) * z
+    z_t = z_t + sigma * torch.sqrt(s * (1 - s)) * z
 
     # Estimate the score depending on direction
     match direction:
         case "forward":
-            target = (z1 - z0) - args.sigma * torch.sqrt(s / (1 - s)) * z
+            target = (z1 - z0) - sigma * torch.sqrt(s / (1 - s)) * z
         case "backward":
-            target = -(z1 - z0) - args.sigma * torch.sqrt((1 - s) / s) * z
+            target = -(z1 - z0) - sigma * torch.sqrt((1 - s) / s) * z
         case _:
             raise ValueError("Direction must be 'forward' or 'backward'.")
 
-    return z_t, t, target
+    return z_t, t, target, sigma
 
 
 @torch.no_grad()
 def sample_sde(
+    args,
     zstart: torch.Tensor,
     t_pairs: Tensor,
     net_dict,
     direction_tosample: str,
     N: int,
-    sig: float,
     device: str,
     full_traj_tmax: float,
     full_traj_tmin: float,
@@ -86,7 +131,7 @@ def sample_sde(
     t_max = t_pairs[:, 1]
 
     time_deltas = t_max - t_min
-    
+
     tensor_of_proportions_of_total = time_deltas / (full_traj_tmax - full_traj_tmin)
 
     # create the linspace for each time delta proportionally to the total time of the full trajectory
@@ -104,7 +149,7 @@ def sample_sde(
         )
         for one_time_delta in proportions_of_total
     }
-    max_nb_steps = max(len(s) for s in steps.values()) 
+    max_nb_steps = max(len(s) for s in steps.values())
 
     # expend t_min and t_max to create the linspace
     t_min_exp = t_min.unsqueeze(1)  # shape [6000, 1]
@@ -117,7 +162,6 @@ def sample_sde(
     this_time_delta_indices_list = []
 
     for one_time_delta in steps:
-
         this_time_delta_indices = time_deltas == one_time_delta
         this_time_delta_t_min_exp = t_min_exp[this_time_delta_indices]
         this_time_delta_t_max_exp = t_max_exp[this_time_delta_indices]
@@ -127,12 +171,11 @@ def sample_sde(
             * steps[one_time_delta]
         )
         if direction_tosample == "forward":
-            this_time_delta_ts = this_time_delta_ts[:, :-1]
-
+            this_time_delta_ts = this_time_delta_ts[
+                :, :-1
+            ]  
         elif direction_tosample == "backward":
             this_time_delta_ts = this_time_delta_ts[:, 1:]
-        
-
 
         # Pad this_time_delta_ts with NaNs to have shape [num_samples, max_nb_steps]
         pad_size = max_nb_steps - this_time_delta_ts.shape[1]
@@ -144,19 +187,84 @@ def sample_sde(
 
         ts[this_time_delta_indices] = this_time_delta_ts
 
-
-
-    dt = 1.0/(N*tensor_of_proportions_of_total) 
+    dt = 1.0 / (N * tensor_of_proportions_of_total)
     dt = dt.unsqueeze(1)
 
     if direction_tosample == "backward":
         ts = ts.flip(dims=[1])
         dt = dt.flip(dims=[1])
 
+    t_pairs_bridges = args.t_pairs_bridges
+
+    # Determine sigma: if it's a float, use as is; if it's a sequence, select per sample
+    if args.sigma_mode == "mono":
+        sigma = args.sigma
+        sigma = torch.full((len(ts),), args.sigma, device=device)
+    elif args.sigma_mode == "multi":
+        sigma = torch.zeros_like(ts)
+        # Assume args.sigma is a tensor or list with shape [batch] or broadcastable
+        if direction_tosample == "forward":
+            for i, (start, end) in enumerate(t_pairs_bridges):
+                mask = (ts >= start) & (ts < end)
+                sigma[mask] = args.sigma[i + 1]
+
+        elif direction_tosample == "backward":
+            for i, (start, end) in enumerate(t_pairs_bridges):
+                mask = (ts > start) & (ts <= end)
+                sigma[mask] = args.sigma[i]
+
+    elif args.sigma_mode == "multi_dim":
+        dim = zstart.shape[1]
+        nb_simulation_step = ts.shape[0]
+        sigma = torch.zeros((nb_simulation_step, dim), device=args.accelerator.device)
+
+        if direction_tosample == "forward":
+            for i, (start, end) in enumerate(t_pairs_bridges):
+                mask = (ts >= start) & (ts < end)
+                indices = torch.where(mask.squeeze())[0]
+
+
+                if args.sigma_linspace == "final":
+                     
+                    sigma[indices, :] = args.sigma_tensor_list[i+1, :].unsqueeze(0)
+
+                elif args.sigma_linspace == "linear":
+                     
+                     sigma = torch.zeros((ts.shape[0], ts.shape[1], dim), device=args.accelerator.device)
+
+                     s = (ts - start) / (end - start)   # shape (nb_samples, max_nb_steps)
+                     sigma_i = args.sigma_tensor_list[i, :].view(1, 1, -1)         # (1, 1, dim)
+                     sigma_ip1 = args.sigma_tensor_list[i + 1, :].view(1, 1, -1)   # (1, 1, dim)
+                     s_exp = s.unsqueeze(-1)  # (nb_samples, max_nb_steps, 1)
+                     sigma_interp = (1 - s_exp) * sigma_i + s_exp * sigma_ip1      # (nb_samples, max_nb_steps, dim)
+                     sigma[mask] = sigma_interp[mask]
+
+
+        elif direction_tosample == "backward":
+            for i, (start, end) in enumerate(t_pairs_bridges):
+                mask = (ts > start) & (ts <= end)
+                indices = torch.where(mask.squeeze())[0]
+
+                if args.sigma_linspace == "final":
+                     
+                    sigma[indices, :] = args.sigma_tensor_list[i, :].unsqueeze(0)
+
+                elif args.sigma_linspace == "linear":
+                     sigma = torch.zeros((ts.shape[0], ts.shape[1], dim), device=args.accelerator.device)
+                     s = (ts - start) / (end - start)   # shape (nb_samples, max_nb_steps)
+                     sigma_i = args.sigma_tensor_list[i, :].view(1, 1, -1)         # (1, 1, dim)
+                     sigma_ip1 = args.sigma_tensor_list[i + 1, :].view(1, 1, -1)   # (1, 1, dim)
+                     s_exp = s.unsqueeze(-1)  # (nb_samples, max_nb_steps, 1)
+                     sigma_interp = (1 - s_exp) * sigma_i + s_exp * sigma_ip1      # (nb_samples, max_nb_steps, dim)
+                     sigma[mask] = sigma_interp[mask]
+
+
     z = zstart.detach().clone()
     score = net_dict[direction_tosample].eval()
 
-    for i in range(max_nb_steps):  # TODO: clean the [mask]s
+    sigma = args.coeff_sigma * sigma
+
+    for i in range(1,max_nb_steps):  # TODO: clean the [mask]s # Starting from one to avoid the first nan which add just noise
         mask = ~torch.isnan(ts[:, i])  # mask to filter out NaNs
         t = ts[mask, i].unsqueeze(
             1
@@ -164,23 +272,43 @@ def sample_sde(
         pred = score(
             z[mask], t
         )  # assume score accepte [batchsize, D] et [batchsize, 1]
-        z[mask] = (
-            z[mask]
-            + pred * dt[mask]
-            + sig * torch.randn_like(z[mask]) * torch.sqrt(dt[mask])
+
+        if args.sigma_mode == "linear":
+
+            z[mask] = (
+                z[mask]
+                + pred * dt[mask]
+                + sigma[mask, i,:]
+                * torch.randn_like(z[mask])
+                * torch.sqrt(dt[mask])
+        
         )
+            
+        else:
+
+
+            z[mask] = (
+                z[mask]
+                + pred * dt[mask]
+                + sigma[mask,:]
+                * torch.randn_like(z[mask])
+                * torch.sqrt(dt[mask])
+        
+        )
+
+
     return z
 
 
 @torch.no_grad()
 def inference_sample_sde(
+    args,
     zstart: torch.Tensor,
     t_pairs: torch.Tensor,
     device: str,
     net_dict,
     direction_tosample: str,
     N: int = 1000,
-    sig: float = 1.0,
 ):
     assert direction_tosample in ["forward", "backward"]
 
@@ -200,13 +328,69 @@ def inference_sample_sde(
         t_end = t_pairs[i, 1]
         mask = (ts >= t_start) & (ts < t_end)
         interval_dt = (full_traj_tmax - full_traj_tmin) / ((t_end - t_start) * N)
+
         dt[mask] = interval_dt
 
     if direction_tosample == "backward":
         sign = -1
-        ts = torch.arange(full_traj_tmax, full_traj_tmin, step=-dt_step)
+        ts = torch.arange(full_traj_tmax, full_traj_tmin, step=-dt_step, device=device)
         dt = dt.flip(dims=[0])
 
+    t_pairs_bridges = args.t_pairs_bridges
+    # Determine sigma: if it's a float, use as is; if it's a sequence, select per sample
+    if args.sigma_mode == "mono":
+        sigma = args.sigma
+        sigma = torch.full((len(ts),), args.sigma, device=device)
+    elif args.sigma_mode == "multi":
+        sigma = torch.zeros_like(ts)
+        # Assume args.sigma is a tensor or list with shape [batch] or broadcastable
+        if direction_tosample == "forward":
+            for i, (start, end) in enumerate(t_pairs_bridges):
+                mask = (ts >= start) & (ts < end)
+
+                sigma[mask] = args.sigma[i + 1]
+
+        elif direction_tosample == "backward":
+            for i, (start, end) in enumerate(t_pairs_bridges):
+                mask = (ts > start) & (ts <= end)
+                sigma[mask] = args.sigma[i]
+
+    elif args.sigma_mode == "multi_dim":
+        dim = zstart.shape[1]
+        nb_simulation_step = ts.shape[0]
+        sigma = torch.zeros((nb_simulation_step, dim), device=args.accelerator.device)
+
+        if direction_tosample == "forward":
+            for i, (start, end) in enumerate(t_pairs_bridges):
+                mask = (ts >= start) & (ts < end)
+                indices = torch.where(mask.squeeze())[0]
+
+                if args.sigma_linspace == "final":
+                    sigma[indices, :] = args.sigma_tensor_list[i + 1, :].unsqueeze(0)
+
+                elif args.sigma_linspace == "linear":
+                    s = (ts[indices] - start) / (end - start)
+
+                    sigma[indices, :] = (1 - s).unsqueeze(1) * args.sigma_tensor_list[
+                        i, :
+                    ].unsqueeze(0) + s.unsqueeze(1) * args.sigma_tensor_list[i + 1, :].unsqueeze(0)
+
+        elif direction_tosample == "backward":
+            for i, (start, end) in enumerate(t_pairs_bridges):
+                mask = (ts > start) & (ts <= end)
+                indices = torch.where(mask.squeeze())[0]
+
+                if args.sigma_linspace == "final":
+                    sigma[indices, :] = args.sigma_tensor_list[i, :].unsqueeze(0)
+
+                elif args.sigma_linspace == "linear":
+                    s = (ts[indices] - start) / (end - start)
+
+                    sigma[indices, :] = (1 - s).unsqueeze(1) * args.sigma_tensor_list[
+                        i, :
+                    ].unsqueeze(0) + s.unsqueeze(1) * args.sigma_tensor_list[i + 1, :].unsqueeze(0)
+
+    sigma = args.coeff_sigma * sigma
     score = net_dict[direction_tosample].eval()
 
     z = zstart.detach().clone()
@@ -223,7 +407,7 @@ def inference_sample_sde(
 
         pred = score(z, t)
 
-        z = z + pred * dt[i] + sig * torch.randn_like(z) * torch.sqrt(dt[i])
+        z = z + pred * dt[i] + sigma[i] * torch.randn_like(z) * torch.sqrt(dt[i])
 
         traj.append(z.detach().clone())
 

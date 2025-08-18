@@ -67,6 +67,12 @@ class N_Bridges(IMF_DSBM):
             self.datasets_train = self.leave_out_datasets(self.datasets_train)
 
         self.min_time, self.max_time = self.min_max_time(self.datasets_train)
+        self.args.t_pairs_bridges = self.list_t_pairs_bridges(self.datasets_train)
+
+        if self.args.sigma_mode == "multi_dim":
+
+            args.sigma_tensor_list = self.get_sigma_multi_dim(self.datasets_train)
+
 
         super().__init__(
             args=args,
@@ -82,6 +88,24 @@ class N_Bridges(IMF_DSBM):
             eps=args.eps,
         )
 
+    def get_sigma_multi_dim(self, time_datasets_list):
+        sigma_tensor_list = []
+
+        for ds in time_datasets_list:
+
+            sigma_tensor_list.append(ds.get_variance())
+        
+        
+        sigma_tensor_list = torch.stack(sigma_tensor_list, dim =0)
+        sigma_tensor_list = sigma_tensor_list.to(device=self.args.accelerator.device)
+        
+        return sigma_tensor_list
+        
+        
+
+            
+
+
     def leave_out_datasets(self, time_datasets_list):
         datasets_train_filtered = []
         for ds in time_datasets_list:
@@ -96,6 +120,12 @@ class N_Bridges(IMF_DSBM):
         min_time = min(float(ds.get_time()) for ds in datasets)
 
         return min_time, max_time
+    
+    def list_t_pairs_bridges(self, datasets):
+
+        times = [float(ds.get_time()) for ds in datasets]
+        t_pairs = [(times[i], times[i + 1]) for i in range(len(times) - 1)]
+        return t_pairs
 
     def _validate_config_time_unique(
         self, distributions: List[DatasetConfig], mode: str
@@ -289,12 +319,12 @@ class N_Bridges(IMF_DSBM):
         )
 
         generated, time = inference_sample_sde(
+            args= args,
             zstart=z0_sampled,
             net_dict=net_dict,
             t_pairs=t_pairs_datasets,
             direction_tosample=direction_tosample,
             N=num_steps,
-            sig=sigma,
             device=device,
         )
 
