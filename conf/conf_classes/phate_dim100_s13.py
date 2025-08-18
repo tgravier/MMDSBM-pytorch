@@ -17,7 +17,7 @@ class ExperimentConfig:
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES_PHATE"
         self.experiment_dir = "experiments_debug"
-        self.experiment_name = "phate_multi_sigma_dim_s13_01"
+        self.experiment_name = "phate_multi_sigma_dim_s13_04"
 
         # ───── Data Parameters
         self.dim = 100
@@ -33,8 +33,8 @@ class ExperimentConfig:
         # ───── Simulation Parameters
 
         self.first_coupling = "ind"
-        self.sigma = [30, 30]
-        self.sigma_mode = "multi_dim"
+        self.sigma = 0.13
+        self.sigma_mode = "mono"
         self.sigma_linspace = "final"
         self.coeff_sigma = 1
         self.num_simulation_steps = 120
@@ -53,7 +53,7 @@ class ExperimentConfig:
         # Warmup epoch
 
         self.warmup = True
-        self.warmup_nb_inner_opt_steps = 70000
+        self.warmup_nb_inner_opt_steps = 10000
         self.warmup_epoch = 0
         # ───── Optimization
         self.lr = 2e-4
@@ -63,7 +63,7 @@ class ExperimentConfig:
 
         # --- Network General
 
-        self.model_name = "mlp"
+        self.model_name = "resnet"
 
         # ───── Network: Forward score model
 

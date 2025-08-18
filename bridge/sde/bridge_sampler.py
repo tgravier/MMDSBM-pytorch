@@ -78,7 +78,9 @@ def get_brownian_bridge(
                 elif args.sigma_linspace == "linear":
                     sigma[indices, :] = (1 - s[indices]) * args.sigma_tensor_list[
                         i, :
-                    ].unsqueeze(0) + s[indices] * args.sigma_tensor_list[i + 1, :].unsqueeze(0)
+                    ].unsqueeze(0) + s[indices] * args.sigma_tensor_list[
+                        i + 1, :
+                    ].unsqueeze(0)
 
         elif direction == "backward":
             for i, (start, end) in enumerate(t_pairs_bridges):
@@ -90,7 +92,9 @@ def get_brownian_bridge(
                 elif args.sigma_linspace == "linear":
                     sigma[indices, :] = (1 - s[indices]) * args.sigma_tensor_list[
                         i, :
-                    ].unsqueeze(0) + s[indices] * args.sigma_tensor_list[i + 1, :].unsqueeze(0)
+                    ].unsqueeze(0) + s[indices] * args.sigma_tensor_list[
+                        i + 1, :
+                    ].unsqueeze(0)
 
     # Compute the mean of the Brownian bridge at time t
     z_t = (1 - s) * z0 + s * z1
@@ -171,9 +175,7 @@ def sample_sde(
             * steps[one_time_delta]
         )
         if direction_tosample == "forward":
-            this_time_delta_ts = this_time_delta_ts[
-                :, :-1
-            ]  
+            this_time_delta_ts = this_time_delta_ts[:, :-1]
         elif direction_tosample == "backward":
             this_time_delta_ts = this_time_delta_ts[:, 1:]
 
@@ -223,22 +225,24 @@ def sample_sde(
                 mask = (ts >= start) & (ts < end)
                 indices = torch.where(mask.squeeze())[0]
 
-
                 if args.sigma_linspace == "final":
-                     
-                    sigma[indices, :] = args.sigma_tensor_list[i+1, :].unsqueeze(0)
+                    sigma[indices, :] = args.sigma_tensor_list[i + 1, :].unsqueeze(0)
 
                 elif args.sigma_linspace == "linear":
-                     
-                     sigma = torch.zeros((ts.shape[0], ts.shape[1], dim), device=args.accelerator.device)
+                    sigma = torch.zeros(
+                        (ts.shape[0], ts.shape[1], dim), device=args.accelerator.device
+                    )
 
-                     s = (ts - start) / (end - start)   # shape (nb_samples, max_nb_steps)
-                     sigma_i = args.sigma_tensor_list[i, :].view(1, 1, -1)         # (1, 1, dim)
-                     sigma_ip1 = args.sigma_tensor_list[i + 1, :].view(1, 1, -1)   # (1, 1, dim)
-                     s_exp = s.unsqueeze(-1)  # (nb_samples, max_nb_steps, 1)
-                     sigma_interp = (1 - s_exp) * sigma_i + s_exp * sigma_ip1      # (nb_samples, max_nb_steps, dim)
-                     sigma[mask] = sigma_interp[mask]
-
+                    s = (ts - start) / (end - start)  # shape (nb_samples, max_nb_steps)
+                    sigma_i = args.sigma_tensor_list[i, :].view(1, 1, -1)  # (1, 1, dim)
+                    sigma_ip1 = args.sigma_tensor_list[i + 1, :].view(
+                        1, 1, -1
+                    )  # (1, 1, dim)
+                    s_exp = s.unsqueeze(-1)  # (nb_samples, max_nb_steps, 1)
+                    sigma_interp = (
+                        1 - s_exp
+                    ) * sigma_i + s_exp * sigma_ip1  # (nb_samples, max_nb_steps, dim)
+                    sigma[mask] = sigma_interp[mask]
 
         elif direction_tosample == "backward":
             for i, (start, end) in enumerate(t_pairs_bridges):
@@ -246,25 +250,31 @@ def sample_sde(
                 indices = torch.where(mask.squeeze())[0]
 
                 if args.sigma_linspace == "final":
-                     
                     sigma[indices, :] = args.sigma_tensor_list[i, :].unsqueeze(0)
 
                 elif args.sigma_linspace == "linear":
-                     sigma = torch.zeros((ts.shape[0], ts.shape[1], dim), device=args.accelerator.device)
-                     s = (ts - start) / (end - start)   # shape (nb_samples, max_nb_steps)
-                     sigma_i = args.sigma_tensor_list[i, :].view(1, 1, -1)         # (1, 1, dim)
-                     sigma_ip1 = args.sigma_tensor_list[i + 1, :].view(1, 1, -1)   # (1, 1, dim)
-                     s_exp = s.unsqueeze(-1)  # (nb_samples, max_nb_steps, 1)
-                     sigma_interp = (1 - s_exp) * sigma_i + s_exp * sigma_ip1      # (nb_samples, max_nb_steps, dim)
-                     sigma[mask] = sigma_interp[mask]
-
+                    sigma = torch.zeros(
+                        (ts.shape[0], ts.shape[1], dim), device=args.accelerator.device
+                    )
+                    s = (ts - start) / (end - start)  # shape (nb_samples, max_nb_steps)
+                    sigma_i = args.sigma_tensor_list[i, :].view(1, 1, -1)  # (1, 1, dim)
+                    sigma_ip1 = args.sigma_tensor_list[i + 1, :].view(
+                        1, 1, -1
+                    )  # (1, 1, dim)
+                    s_exp = s.unsqueeze(-1)  # (nb_samples, max_nb_steps, 1)
+                    sigma_interp = (
+                        1 - s_exp
+                    ) * sigma_i + s_exp * sigma_ip1  # (nb_samples, max_nb_steps, dim)
+                    sigma[mask] = sigma_interp[mask]
 
     z = zstart.detach().clone()
     score = net_dict[direction_tosample].eval()
 
     sigma = args.coeff_sigma * sigma
 
-    for i in range(1,max_nb_steps):  # TODO: clean the [mask]s # Starting from one to avoid the first nan which add just noise
+    for i in range(
+        1, max_nb_steps
+    ):  # TODO: clean the [mask]s # Starting from one to avoid the first nan which add just noise
         mask = ~torch.isnan(ts[:, i])  # mask to filter out NaNs
         t = ts[mask, i].unsqueeze(
             1
@@ -273,30 +283,39 @@ def sample_sde(
             z[mask], t
         )  # assume score accepte [batchsize, D] et [batchsize, 1]
 
-        if args.sigma_mode == "linear":
-
+        if args.sigma_linspace == "linear" and args.sigma_mode == "multi_dim":
             z[mask] = (
                 z[mask]
                 + pred * dt[mask]
-                + sigma[mask, i,:]
+                + sigma[mask, i, :] * torch.randn_like(z[mask]) * torch.sqrt(dt[mask])
+            )
+
+        elif args.sigma_linspace == "final" and args.sigma_mode == "multi_dim":
+            z[mask] = (
+                z[mask]
+                + pred * dt[mask]
+                + sigma[mask, :] * torch.randn_like(z[mask]) * torch.sqrt(dt[mask])
+            )
+        
+        elif args.sigma_mode == "multi":
+            z[mask] = (
+                z[mask]
+                + pred * dt[mask]
+                + sigma[mask,i].unsqueeze(1)
                 * torch.randn_like(z[mask])
                 * torch.sqrt(dt[mask])
-        
-        )
-            
+            )
+
+
+
         else:
-
-
             z[mask] = (
                 z[mask]
                 + pred * dt[mask]
-                + sigma[mask,:]
+                + sigma[mask].unsqueeze(1)
                 * torch.randn_like(z[mask])
                 * torch.sqrt(dt[mask])
-        
-        )
-
-
+            )
     return z
 
 
@@ -373,7 +392,9 @@ def inference_sample_sde(
 
                     sigma[indices, :] = (1 - s).unsqueeze(1) * args.sigma_tensor_list[
                         i, :
-                    ].unsqueeze(0) + s.unsqueeze(1) * args.sigma_tensor_list[i + 1, :].unsqueeze(0)
+                    ].unsqueeze(0) + s.unsqueeze(1) * args.sigma_tensor_list[
+                        i + 1, :
+                    ].unsqueeze(0)
 
         elif direction_tosample == "backward":
             for i, (start, end) in enumerate(t_pairs_bridges):
@@ -388,7 +409,9 @@ def inference_sample_sde(
 
                     sigma[indices, :] = (1 - s).unsqueeze(1) * args.sigma_tensor_list[
                         i, :
-                    ].unsqueeze(0) + s.unsqueeze(1) * args.sigma_tensor_list[i + 1, :].unsqueeze(0)
+                    ].unsqueeze(0) + s.unsqueeze(1) * args.sigma_tensor_list[
+                        i + 1, :
+                    ].unsqueeze(0)
 
     sigma = args.coeff_sigma * sigma
     score = net_dict[direction_tosample].eval()
