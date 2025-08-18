@@ -21,11 +21,11 @@ class ExperimentConfig:
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES"
         self.experiment_dir = "experiments_debug"
-        self.experiment_name = "debug_gaussian5_06"
+        self.experiment_name = "debug_commit_sigma_04"
 
         # ───── Data Parameters
         self.dim = 2
-        self.batch_size = 128
+        self.batch_size = 256
         self.n_distributions = 4
         self.separation_train_test = True
         self.nb_points_test = 1000
@@ -34,52 +34,55 @@ class ExperimentConfig:
         # ───── Dataset Configuration
         self.distributions = DistributionConfig(dim=self.dim)
 
+
         # ───── Simulation Parameters
 
         self.first_coupling = "ind"
-        self.sigma = [1, 1, 1, 1.5]
-        self.loss_scale = True
-        self.num_simulation_steps = 80
-        self.nb_inner_opt_steps = 1000
-        self.nb_outer_iterations = 5
-        self.eps = 1e-5
-        self.loss_scale = True
+        self.sigma = [1,1,1,1]
+        self.sigma_mode = "multi_dim"
+        self.sigma_linspace = "final"
+        self.coeff_sigma = 1
+        self.num_simulation_steps = 120
+        self.nb_inner_opt_steps = 10000
+        self.nb_outer_iterations = 100
+        self.eps = 1e-3
+        self.loss_scale = False
 
         # ───── EMA Parameters
 
         self.ema = True
-        self.decay_ema = 0.999
+        self.decay_ema = 0.9999
 
         # Warmup epoch
 
         self.warmup = True
-        self.warmup_nb_inner_opt_steps = 1000
+        self.warmup_nb_inner_opt_steps = 10000
         self.warmup_epoch = 0
 
         # ───── Optimization
-        self.lr = 2e-3
+        self.lr = 2e-4
         self.grad_clip = 20
         self.optimizer_type = "adam"
         self.optimizer_params = {"betas": (0.9, 0.999), "weight_decay": 0.0}
 
         # --- Network General
 
-        self.model_name = "mlp"
+        self.model_name = "resnet"
 
         # ───── Network: Forward score model
 
         self.net_fwd_layers = [
-            128,
-            128,
+            256,
+            256,
         ]
-        self.net_fwd_time_dim = 64
+        self.net_fwd_time_dim = 128
 
         # ───── Network: Backward score model
         self.net_bwd_layers = [
-            128,
-            128,
+            256,
+            256,
         ]
-        self.net_bwd_time_dim = 64
+        self.net_bwd_time_dim = 128
 
         # ----- Inference
 

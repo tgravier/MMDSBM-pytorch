@@ -211,11 +211,23 @@ class IMF_DSBM:
                     )  # TODO see if the perturbation need to be of the same std of the stepsize
 
                 elif first_coupling == "ind":
+
                     zstart = x_pairs[:, 0]
                     zend = x_pairs[:, 1].clone()
-                    permutation = torch.randperm(len(zend))
-                    zend = zend[permutation]
-                    t_pairs = t_pairs[permutation]
+                    for t_pair in torch.unique(t_pairs, dim=0):
+
+                        indices = (t_pairs == t_pair).all(dim=1).nonzero(as_tuple=True)[0].tolist()
+                        zend_t_pair = zend[indices]
+
+                        permutation = torch.randperm(len(indices))
+                        zend_permuted = zend_t_pair[permutation]
+
+                        zend[indices] = zend_permuted
+                    
+                    final_permutation = torch.randperm(zstart.shape[0])
+                    zstart = zstart[final_permutation]
+                    zend = zend[final_permutation]
+                    t_pairs = t_pairs[final_permutation]
 
                 else:
                     raise NotImplementedError
@@ -232,9 +244,20 @@ class IMF_DSBM:
                 elif first_coupling == "ind":
                     zstart = x_pairs[:, 1]
                     zend = x_pairs[:, 0].clone()
-                    permutation = torch.randperm(len(zend))
-                    zend = zend[permutation]
-                    t_pairs = t_pairs[permutation]
+                    for t_pair in torch.unique(t_pairs, dim=0):
+
+                        indices = (t_pairs == t_pair).all(dim=1).nonzero(as_tuple=True)[0].tolist()
+                        zend_t_pair = zend[indices]
+
+                        permutation = torch.randperm(len(indices))
+                        zend_permuted = zend_t_pair[permutation]
+
+                        zend[indices] = zend_permuted
+                    
+                    final_permutation = torch.randperm(zstart.shape[0])
+                    zstart = zstart[final_permutation]
+                    zend = zend[final_permutation]
+                    t_pairs = t_pairs[final_permutation]
 
                 else:
                     raise NotImplementedError
