@@ -17,7 +17,7 @@ class ExperimentConfig:
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES_PHATE"
         self.experiment_dir = "experiments_debug"
-        self.experiment_name = "phate_multi_sigma_dim_s13_04"
+        self.experiment_name = "phate_multi_sigma_dim_s13_10"
 
         # ───── Data Parameters
         self.dim = 100
@@ -33,8 +33,8 @@ class ExperimentConfig:
         # ───── Simulation Parameters
 
         self.first_coupling = "ind"
-        self.sigma = 0.13
-        self.sigma_mode = "mono"
+        self.sigma = [0.58,0.83,0.98,1.06,1.39]
+        self.sigma_mode = "multi"
         self.sigma_linspace = "final"
         self.coeff_sigma = 1
         self.num_simulation_steps = 120
@@ -58,21 +58,21 @@ class ExperimentConfig:
         # ───── Optimization
         self.lr = 2e-4
         self.grad_clip = 20
-        self.optimizer_type = "adam"
+        self.optimizer_type = "adamw"
         self.optimizer_params = {"betas": (0.9, 0.999), "weight_decay": 0.0}
 
         # --- Network General
 
-        self.model_name = "resnet"
+        self.model_name = "mlp_film"
 
         # ───── Network: Forward score model
 
-        self.net_fwd_layers = [256, 256,]
-        self.net_fwd_time_dim = 128
+        self.net_fwd_layers = [512, 512,]
+        self.net_fwd_time_dim = 256
 
         # ───── Network: Backward score model
-        self.net_bwd_layers = [256, 256,]
-        self.net_bwd_time_dim = 128
+        self.net_bwd_layers = [512, 512,]
+        self.net_bwd_time_dim = 256
 
         # ----- Inference
 

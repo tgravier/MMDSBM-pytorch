@@ -21,7 +21,7 @@ class ExperimentConfig:
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES"
         self.experiment_dir = "experiments_debug"
-        self.experiment_name = "debug_commit_sigma_05"
+        self.experiment_name = "debug_commit_sigma_08"
 
         # ───── Data Parameters
         self.dim = 2
@@ -42,9 +42,9 @@ class ExperimentConfig:
         self.sigma_mode = "multi"
         self.sigma_linspace = "final"
         self.coeff_sigma = 1
-        self.num_simulation_steps = 120
-        self.nb_inner_opt_steps = 10
-        self.nb_outer_iterations = 100
+        self.num_simulation_steps = 80
+        self.nb_inner_opt_steps = 20000
+        self.nb_outer_iterations = 8
         self.eps = 1e-3
         self.loss_scale = False
 
@@ -56,18 +56,18 @@ class ExperimentConfig:
         # Warmup epoch
 
         self.warmup = True
-        self.warmup_nb_inner_opt_steps = 10
+        self.warmup_nb_inner_opt_steps = 500
         self.warmup_epoch = 0
 
         # ───── Optimization
         self.lr = 2e-4
         self.grad_clip = 20
-        self.optimizer_type = "adam"
+        self.optimizer_type = "adamw"
         self.optimizer_params = {"betas": (0.9, 0.999), "weight_decay": 0.0}
 
         # --- Network General
 
-        self.model_name = "resnet"
+        self.model_name = "mlp_film"
 
         # ───── Network: Forward score model
 

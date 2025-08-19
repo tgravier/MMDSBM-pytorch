@@ -5,6 +5,7 @@ from utils.tracking_logger import WandbLogger
 from conf.conf_loader import load_config
 from bridge.models.networks import (
     ScoreNetwork,
+    ScoreNetworkFILM,
     ScoreNetworkResNet,
     print_trainable_params,
 )
@@ -131,6 +132,24 @@ class trainer_bridges(N_Bridges):
                 time_dim=net_bwd_time_dim,
                 max_time=max_time,
             )
+        
+        elif model_name == "mlp_film":
+            net_fwd = ScoreNetworkFILM(
+                input_dim=input_dim,
+                layers_widths=net_fwd_layers,
+                activation_fn=activation,
+                time_dim=net_fwd_time_dim,
+                max_time=max_time,
+            )
+
+            net_bwd = ScoreNetworkFILM(
+                input_dim=input_dim,
+                layers_widths=net_bwd_layers,
+                activation_fn=activation,
+                time_dim=net_bwd_time_dim,
+                max_time=max_time)
+                
+            
 
         print_trainable_params(net_fwd, "net_fwd")
         print_trainable_params(net_bwd, "net_bwd")
@@ -162,7 +181,7 @@ class trainer_bridges(N_Bridges):
 
     def instance_ema_config(self):
         net_fwd_ema = EMA(self.net_fwd, decay=self.experiment_config.decay_ema)
-        net_bwd_ema = EMA(self.net_fwd, decay=self.experiment_config.decay_ema)
+        net_bwd_ema = EMA(self.net_bwd, decay=self.experiment_config.decay_ema)
 
         return net_fwd_ema, net_bwd_ema
 

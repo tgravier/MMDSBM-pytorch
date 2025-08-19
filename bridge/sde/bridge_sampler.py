@@ -189,9 +189,10 @@ def sample_sde(
 
         ts[this_time_delta_indices] = this_time_delta_ts
 
-    dt = 1.0 / (N * tensor_of_proportions_of_total)
+    dt = ts.diff(dim=1)[
+        torch.arange(ts.size(0)), (~ts.diff(dim=1).isnan()).float().argmax(dim=1)
+    ]
     dt = dt.unsqueeze(1)
-
     if direction_tosample == "backward":
         ts = ts.flip(dims=[1])
         dt = dt.flip(dims=[1])
@@ -273,7 +274,7 @@ def sample_sde(
     sigma = args.coeff_sigma * sigma
 
     for i in range(
-        1, max_nb_steps
+        max_nb_steps
     ):  # TODO: clean the [mask]s # Starting from one to avoid the first nan which add just noise
         mask = ~torch.isnan(ts[:, i])  # mask to filter out NaNs
         t = ts[mask, i].unsqueeze(
@@ -296,17 +297,15 @@ def sample_sde(
                 + pred * dt[mask]
                 + sigma[mask, :] * torch.randn_like(z[mask]) * torch.sqrt(dt[mask])
             )
-        
+
         elif args.sigma_mode == "multi":
             z[mask] = (
                 z[mask]
                 + pred * dt[mask]
-                + sigma[mask,i].unsqueeze(1)
+                + sigma[mask, i].unsqueeze(1)
                 * torch.randn_like(z[mask])
                 * torch.sqrt(dt[mask])
             )
-
-
 
         else:
             z[mask] = (
