@@ -43,7 +43,7 @@ class ExperimentConfig:
         self.sigma_linspace = "final"
         self.coeff_sigma = 1
         self.num_simulation_steps = 80
-        self.nb_inner_opt_steps = 20000
+        self.nb_inner_opt_steps = 2
         self.nb_outer_iterations = 8
         self.eps = 1e-3
         self.loss_scale = False
@@ -56,7 +56,7 @@ class ExperimentConfig:
         # Warmup epoch
 
         self.warmup = True
-        self.warmup_nb_inner_opt_steps = 500
+        self.warmup_nb_inner_opt_steps = 5
         self.warmup_epoch = 0
 
         # ───── Optimization
@@ -102,6 +102,7 @@ class ExperimentConfig:
         # ───── Metric
 
         self.log_wandb_loss = True
+        self.rescale = False
 
         self.display_swd = True
         self.log_wandb_swd = True

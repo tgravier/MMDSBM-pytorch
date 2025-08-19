@@ -9,7 +9,7 @@
             "console": "integratedTerminal",
             "args": [
                 "--config",
-                "debug_gaussian5"
+                "phate_dim100_s13"
             ]
         },
         {
@@ -21,9 +21,9 @@
             "args": [
                 "--inference",
                 "--experiment_path",
-                "experiments/test_inference_01",
+                "experiments_debug/phate_multi_sigma_dim_s13_06",
                 "--weight_epoch",
-                "3",
+                "32",
                 "--n_runs",
                 "5"
             ]

@@ -6,7 +6,8 @@ from sklearn.datasets import make_s_curve
 from datasets.datasets_registry import DatasetConfig
 import os
 from sklearn.preprocessing import StandardScaler
-from typing import Union, Tuple
+from typing import Union, Tuple, Optional
+import joblib
 
 # datasets/datasets.py
 
@@ -16,11 +17,12 @@ from typing import Union, Tuple
 
 
 class TimedDataset(Dataset):
-    def __init__(self, data: torch.Tensor, time: float):
+    def __init__(self, data: torch.Tensor, time: float, path:Optional[str]=None):
         if not isinstance(time, (float, int)):
             raise TypeError(f"'time' must be a float or int, got {type(time)}")
         self.data = data
         self.time = float(time)
+        self.path = path
 
     def __len__(self):
         return len(self.data)
@@ -31,8 +33,32 @@ class TimedDataset(Dataset):
     def get_time(self) -> float:
         return self.time
 
-    def get_all(self):
-        return self.data
+    def get_all(self, rescale_data=False):
+
+        if not rescale_data:
+
+            return self.data
+        
+        if rescale_data:
+
+            if self.path is None:
+                raise ValueError("Path to scaler.pkl must be provided to inverse rescale data.")
+            
+            path = os.path.dirname(self.path)
+            scaler_path = os.path.join(path, "scaler.pkl")
+            
+            if not os.path.exists(scaler_path):
+                raise FileNotFoundError(f"Scaler file not found at {scaler_path}")
+
+            scaler = joblib.load(scaler_path)
+            inversed_data = torch.tensor(scaler.inverse_transform(self.data.cpu().numpy()))
+            return inversed_data
+    
+    def get_path(self):
+
+        return self.path
+
+            
     
     def get_variance(self):
 
@@ -158,13 +184,14 @@ def load_dataset(
             raise ValueError(f"File '{path}' must contain key 'pcs'.")
         pcs = data_npz["pcs"]
         pcs = pcs[:,:dim]
+
         if separation_train_test:
             data_train, data_test = random_split(torch.tensor(pcs, dtype=torch.float32), nb_points_test)
             return (
-                TimedDataset(data_train, time),
-                TimedDataset(data_test, time)
+                TimedDataset(data_train, time,path),
+                TimedDataset(data_test, time,path)
             )
-        return TimedDataset(torch.tensor(pcs, dtype=torch.float32), time)
+        return TimedDataset(torch.tensor(pcs, dtype=torch.float32), time,path)
 
     else:
         raise ValueError(f"Unknown dataset name: {name}")

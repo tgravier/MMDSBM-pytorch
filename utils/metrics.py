@@ -53,6 +53,7 @@ def evaluate_swd_over_time(
     datasets_inference: List,
     direction_tosample: str,
     n_proj: int = 50,
+    rescale_data:bool = False,
 ) -> List[Tuple[float, float]]:
     """
     Evaluates Sliced Wasserstein Distance (SWD) between generated samples and reference datasets.
@@ -81,9 +82,10 @@ def evaluate_swd_over_time(
     time_tensor = torch.tensor(time)
     swd_scores = []
 
+
     for dataset in sorted_datasets:
         ref_time = dataset.get_time()
-        ref_data = dataset.get_all().to(generated[0].device)
+        ref_data = dataset.get_all(rescale_data=rescale_data).to(generated[0].device)
 
         # Find closest generated time
         closest_idx = int(torch.argmin(torch.abs(time_tensor - ref_time)).item())

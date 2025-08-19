@@ -8,6 +8,7 @@ import numpy as np
 from typing import Tuple, Dict, List, Optional, Sequence
 import json
 import wandb
+import joblib
 
 from bridge.core_dsbm import IMF_DSBM
 from datasets.datasets_registry import DatasetConfig
@@ -290,9 +291,10 @@ class N_Bridges(IMF_DSBM):
         net_dict: dict,
         datasets_inference: list,
         outer_iter_idx: int,
-        num_samples: int = 100,
-        num_steps: int = 200,
-        sigma: float = 1.0,
+        num_samples: int,
+        num_steps: int,
+        sigma: float,
+        rescale:bool = False,
     ):
         device = next(net_dict[direction_tosample].parameters()).device
 
@@ -318,6 +320,8 @@ class N_Bridges(IMF_DSBM):
             device=device,
         )
 
+        
+
         generated, time = inference_sample_sde(
             args= args,
             zstart=z0_sampled,
@@ -327,6 +331,29 @@ class N_Bridges(IMF_DSBM):
             N=num_steps,
             device=device,
         )
+
+        if rescale:
+            generated_rescale = []
+            path = datasets_inference[0].get_path()
+            path = os.path.dirname(path)
+            if path is None:
+                raise ValueError("Path to scaler.pkl must be provided to inverse rescale data.")
+            
+            scaler_path = os.path.join(path, "scaler.pkl")
+            if not os.path.exists(scaler_path):
+                raise FileNotFoundError(f"Scaler file not found at {scaler_path}")
+            
+            scaler = joblib.load(scaler_path)
+            for tensor in generated:
+    
+
+                inversed_data = torch.tensor(scaler.inverse_transform(tensor.clone().detach().cpu().numpy()), device= device)
+                generated_rescale.append(inversed_data)
+            
+            return generated, generated_rescale, time
+            
+
+
 
         return generated, time
 
@@ -477,16 +504,33 @@ class N_Bridges(IMF_DSBM):
         # ───── Only run inference if needed
         if do_plot or do_swd or do_mmd or do_energy:
             datasets_for_generation = self.leave_out_datasets(datasets_inference)
-            generated, time = self.inference_test(
-                args=args,
-                direction_tosample=direction_to_train,
-                net_dict=net_dict,
-                datasets_inference=datasets_for_generation,  # We use datasets_for_generation to keep the good dt
-                outer_iter_idx=outer_iter_idx,
-                num_samples=args.num_sample_metric,
-                num_steps=args.num_simulation_steps,
-                sigma=args.sigma_inference,
-            )
+            if args.rescale:
+
+                generated, generated_rescale, time = self.inference_test(
+                    args=args,
+                    direction_tosample=direction_to_train,
+                    net_dict=net_dict,
+                    datasets_inference=datasets_for_generation,  # We use datasets_for_generation to keep the good dt
+                    outer_iter_idx=outer_iter_idx,
+                    num_samples=args.num_sample_metric,
+                    num_steps=args.num_simulation_steps,
+                    sigma=args.sigma_inference,
+                    rescale = args.rescale
+                )
+            else:
+
+                generated, time = self.inference_test(
+                    args=args,
+                    direction_tosample=direction_to_train,
+                    net_dict=net_dict,
+                    datasets_inference=datasets_for_generation,  # We use datasets_for_generation to keep the good dt
+                    outer_iter_idx=outer_iter_idx,
+                    num_samples=args.num_sample_metric,
+                    num_steps=args.num_simulation_steps,
+                    sigma=args.sigma_inference,
+                )
+
+
         else:
             generated, time = None, None
 
@@ -522,6 +566,7 @@ class N_Bridges(IMF_DSBM):
                 time=time,
                 datasets_inference=datasets_inference,
                 direction_tosample=direction_to_train,
+                
             )
             for t, swd in swd_scores:
                 print(f"[SWD @ t={t:.2f}] = {swd:.4f}")
@@ -546,25 +591,43 @@ class N_Bridges(IMF_DSBM):
                     },
                     step=outer_iter_idx,
                 )
+            if args.rescale:
 
-            if args.dim <= 3:
-                wd_scores = evaluate_wd_over_time(
-                    generated=generated,
-                    time=time,
-                    datasets_inference=datasets_inference,
-                    direction_tosample=direction_to_train,
-                )
-                for t, wd in wd_scores:
-                    print(f"[WD @ t={t:.2f}] = {wd:.4f}")
+                swd_scores = evaluate_swd_over_time(
+                generated=generated_rescale,
+                time=time,
+                datasets_inference=datasets_inference,
+                direction_tosample=direction_to_train,
+                rescale_data=True
+                
+            )
+                for t, swd in swd_scores:
+                    print(f"[SWD RESCALE @ t={t:.2f}] = {swd:.4f}")
                     if args.log_wandb_swd:
                         self.tracking_logger.log(
                             {
-                                f"wd/{direction_to_train}/t={t:.2f}": wd,
+                                f"swd_rescale/{direction_to_train}/t={t:.2f}": swd,
                                 "epoch": outer_iter_idx,
                             },
                             step=outer_iter_idx,
                         )
+                
+                # Remove the first element and compute the mean over the second dimension
+                if len(swd_scores) > 1:
+                    swd_values = [swd for _, swd in swd_scores[1:]]
+                    swd_mean = float(np.mean(swd_values))
+                    print(f"[SWD RESCALE MEAN] = {swd_mean:.4f}")
+                    self.tracking_logger.log(
+                        {
+                            f"swd_rescale_mean/{direction_to_train}/epoch": swd_mean,
+                            "epoch": outer_iter_idx,
+                        },
+                        step=outer_iter_idx,
+                    )              
 
+
+
+            
         # ───── MMD
         if do_mmd and generated is not None:
             mmd_scores = evaluate_mmd_over_time(

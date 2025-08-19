@@ -17,7 +17,7 @@ class ExperimentConfig:
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES_PHATE"
         self.experiment_dir = "experiments_debug"
-        self.experiment_name = "phate_multi_sigma_dim_s13_10"
+        self.experiment_name = "phate_multi_sigma_dim_s13_15"
 
         # ───── Data Parameters
         self.dim = 100
@@ -33,15 +33,15 @@ class ExperimentConfig:
         # ───── Simulation Parameters
 
         self.first_coupling = "ind"
-        self.sigma = [0.58,0.83,0.98,1.06,1.39]
-        self.sigma_mode = "multi"
+        self.sigma = 1.5
+        self.sigma_mode = "mono"
         self.sigma_linspace = "final"
         self.coeff_sigma = 1
         self.num_simulation_steps = 120
-        self.nb_inner_opt_steps = 10000
+        self.nb_inner_opt_steps = 5000
         self.nb_outer_iterations = 100
         self.eps = 1e-3
-        self.loss_scale = True
+        self.loss_scale = False
 
 
         # ───── EMA Parameters
@@ -53,7 +53,7 @@ class ExperimentConfig:
         # Warmup epoch
 
         self.warmup = True
-        self.warmup_nb_inner_opt_steps = 10000
+        self.warmup_nb_inner_opt_steps = 5000
         self.warmup_epoch = 0
         # ───── Optimization
         self.lr = 2e-4
@@ -67,12 +67,12 @@ class ExperimentConfig:
 
         # ───── Network: Forward score model
 
-        self.net_fwd_layers = [512, 512,]
-        self.net_fwd_time_dim = 256
+        self.net_fwd_layers = [256, 256,]
+        self.net_fwd_time_dim = 128
 
         # ───── Network: Backward score model
-        self.net_bwd_layers = [512, 512,]
-        self.net_bwd_time_dim = 256
+        self.net_bwd_layers = [256, 256,]
+        self.net_bwd_time_dim = 128
 
         # ----- Inference
 
@@ -92,6 +92,7 @@ class ExperimentConfig:
         # ───── Metric
 
         self.log_wandb_loss = True
+        self.rescale = True
 
         self.display_swd = True
         self.log_wandb_swd = True

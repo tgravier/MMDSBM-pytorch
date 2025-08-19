@@ -17,7 +17,7 @@ class ExperimentConfig:
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES_PHATE"
         self.experiment_dir = "experiments_debug"
-        self.experiment_name = "debug_coeff_sigma_02"
+        self.experiment_name = "phate_dim100_s8_sigma_150_bs512_02"
 
         # ───── Data Parameters
         self.dim = 100
@@ -26,6 +26,7 @@ class ExperimentConfig:
         self.separation_train_test = True
         self.nb_points_test = 1000
         self.leave_out_list = []
+        
 
         # ───── Dataset Configuration
         self.distributions = DistributionConfig(dim=self.dim)
@@ -33,37 +34,37 @@ class ExperimentConfig:
         # ───── Simulation Parameters
 
         self.first_coupling = "ind"
-        self.sigma = [30, 30]
-        self.sigma_mode = "multi_dim"
+        self.sigma = 1.505
+        self.sigma_mode = "mono"
         self.sigma_linspace = "final"
-        self.coeff_sigma = 1.2
+        self.coeff_sigma=1
         self.num_simulation_steps = 120
-        self.nb_inner_opt_steps = 2
-        self.nb_outer_iterations = 50
+        self.nb_inner_opt_steps = 25000
+        self.nb_outer_iterations = 20
         self.eps = 1e-3
-        self.loss_scale = True
+        self.loss_scale = False
 
 
         # ───── EMA Parameters
 
         self.ema = True
-        self.decay_ema = 0.99
+        self.decay_ema = 0.9999
 
 
         # Warmup epoch
 
         self.warmup = True
-        self.warmup_nb_inner_opt_steps = 5
+        self.warmup_nb_inner_opt_steps = 100000
         self.warmup_epoch = 0
         # ───── Optimization
         self.lr = 2e-4
         self.grad_clip = 20
-        self.optimizer_type = "adam"
+        self.optimizer_type = "adamw"
         self.optimizer_params = {"betas": (0.9, 0.999), "weight_decay": 0.0}
 
         # --- Network General
 
-        self.model_name = "mlp"
+        self.model_name = "mlp_film"
 
         # ───── Network: Forward score model
 
@@ -92,6 +93,7 @@ class ExperimentConfig:
         # ───── Metric
 
         self.log_wandb_loss = True
+        self.rescale = True
 
         self.display_swd = True
         self.log_wandb_swd = True

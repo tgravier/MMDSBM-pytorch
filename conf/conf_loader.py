@@ -7,7 +7,10 @@ from typing import Optional
 
 
 def load_config(
-    config_name: str = None, experiment_path: str = None, resume_train: bool = False, inference : bool = False
+    config_name: str = None,
+    experiment_path: str = None,
+    resume_train: bool = False,
+    inference: bool = False,
 ):
     """
     Load configuration either from conf.conf_classes.<config_name> (normal mode)
@@ -201,7 +204,7 @@ def get_experiment_parameters(experiment_path: str):
     return params
 
 
-def load_test_datasets(experiment_path: str):
+def load_test_datasets(experiment_path: str, rescale: bool = False):
     """
     Charge les datasets de test depuis le dossier d'expérience.
 
@@ -230,15 +233,49 @@ def load_test_datasets(experiment_path: str):
             f"Aucun fichier de dataset de test trouvé dans {datasets_test_dir}"
         )
 
+    # Charger la config d'expérience pour récupérer les file_path
+    conf_dir = exp_path / "conf"
+    py_files = list(conf_dir.glob("*.py"))
+    if not py_files:
+        raise FileNotFoundError(f"Aucun fichier .py trouvé dans {conf_dir}")
+    config_file = py_files[0]
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("loaded_config", config_file)
+    loaded_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(loaded_module)
+    DistributionConfigCls = getattr(loaded_module, "DistributionConfig")
+    distribution_cfg = DistributionConfigCls(
+        dim=1
+    )  # dim n'a pas d'importance ici, on veut juste la liste
+    distributions = distribution_cfg.distributions
+
     # Charger et créer les TimedDataset
     test_datasets = []
-    for file_path in sorted(dataset_files):  # Trier pour un ordre consistant
+    for idx, file_path in enumerate(sorted(dataset_files)):
         dataset_dict = torch.load(file_path, map_location="cpu", weights_only=True)
+        # Associer à la distribution de même time si possible
+        dist = None
+        if "time" in dataset_dict:
+            for d in distributions:
+                if hasattr(d, "time") and d.time == dataset_dict["time"]:
+                    dist = d
+                    break
+        if dist is None and idx < len(distributions):
+            dist = distributions[idx]
 
-        # Recréer le TimedDataset
-        timed_dataset = TimedDataset(
-            data=dataset_dict["data"], time=dataset_dict["time"]
-        )
+        # Si rescale, on passe le dirname du file_path de la config
+        if rescale :
+            import os
+
+            path = dist.params['file_path']
+            timed_dataset = TimedDataset(
+                data=dataset_dict["data"], time=dataset_dict["time"], path=path
+            )
+        else:
+            timed_dataset = TimedDataset(
+                data=dataset_dict["data"], time=dataset_dict["time"]
+            )
         test_datasets.append(timed_dataset)
         print(f"Loaded test dataset for time {dataset_dict['time']} from {file_path}")
 
