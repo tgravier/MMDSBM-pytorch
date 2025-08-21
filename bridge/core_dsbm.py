@@ -119,6 +119,18 @@ class IMF_DSBM:
                 z0, z1, t_tensor = next(dl)
 
             except StopIteration:
+                del dl , 
+
+                self.clear()
+                dataset = TensorDataset(
+                *self.generate_dataloaders(
+                    args=self.args,
+                    x_pairs=x_pairs,
+                    t_pairs=t_pairs,
+                    direction_to_train=direction,
+                    outer_iter_idx=outer_iter_idx,
+                    first_coupling=self.args.first_coupling,
+            ))
                 dl = iter(
                     self.accelerator.prepare(
                         DataLoader(
@@ -156,7 +168,7 @@ class IMF_DSBM:
             # 4. compute loss, backward, and optim step
             loss = F.mse_loss(loss_scale * pred, loss_scale * target)
 
-            self.optimizer[direction].zero_grad()
+            self.optimizer[direction].zero_grad(set_to_none=True)
             self.accelerator.backward(loss)
 
             # Compute total gradient norm (L2 norm)
@@ -185,12 +197,17 @@ class IMF_DSBM:
             loss_curve.append(loss.item())
             grad_curve.append(total_norm)
 
+        self.clear()
         return (
             loss_curve,
             grad_curve,
             {"forward": self.net_fwd, "backward": self.net_bwd},
             {"forward": self.net_fwd_ema, "backward": self.net_bwd_ema},
         )
+    
+    def clear(self):
+        self.accelerator.free_memory()
+        torch.cuda.empty_cache()
 
     @torch.inference_mode()
     def generate_dataloaders(

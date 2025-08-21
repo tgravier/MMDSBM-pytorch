@@ -21,7 +21,7 @@ class ExperimentConfig:
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES"
         self.experiment_dir = "experiments_debug"
-        self.experiment_name = "debug_commit_sigma_08"
+        self.experiment_name = "debug_commit_sigma_00"
 
         # ───── Data Parameters
         self.dim = 2
@@ -38,12 +38,12 @@ class ExperimentConfig:
         # ───── Simulation Parameters
 
         self.first_coupling = "ind"
-        self.sigma = [1,1,1,1]
-        self.sigma_mode = "multi"
+        self.sigma = 1
+        self.sigma_mode = "mono"
         self.sigma_linspace = "final"
         self.coeff_sigma = 1
         self.num_simulation_steps = 80
-        self.nb_inner_opt_steps = 2
+        self.nb_inner_opt_steps = 2000
         self.nb_outer_iterations = 8
         self.eps = 1e-3
         self.loss_scale = False
@@ -51,12 +51,12 @@ class ExperimentConfig:
         # ───── EMA Parameters
 
         self.ema = True
-        self.decay_ema = 0.9999
+        self.decay_ema = 0
 
         # Warmup epoch
 
         self.warmup = True
-        self.warmup_nb_inner_opt_steps = 5
+        self.warmup_nb_inner_opt_steps = 2000
         self.warmup_epoch = 0
 
         # ───── Optimization
