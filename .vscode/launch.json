@@ -9,7 +9,7 @@
             "console": "integratedTerminal",
             "args": [
                 "--config",
-                "phate_dim100_s13"
+                "debug_gaussian5"
             ]
         },
         {

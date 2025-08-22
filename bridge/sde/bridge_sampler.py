@@ -117,6 +117,8 @@ def get_brownian_bridge(
     return z_t, t, target, sigma
 
 
+
+
 @torch.no_grad()
 def sample_sde(
     args,
@@ -129,77 +131,50 @@ def sample_sde(
     full_traj_tmax: float,
     full_traj_tmin: float,
 ):
-    assert direction_tosample in ["forward", "backward"]
-
-    t_min = t_pairs[:, 0]
-    t_max = t_pairs[:, 1]
-
-    time_deltas = t_max - t_min
-
-    tensor_of_proportions_of_total = time_deltas / (full_traj_tmax - full_traj_tmin)
-
-    # create the linspace for each time delta proportionally to the total time of the full trajectory
-    proportions_of_total = {
-        one_time_delta: one_time_delta / (full_traj_tmax - full_traj_tmin)
-        for one_time_delta in torch.unique(time_deltas)
-    }
-    # print(f"DEBUG proportions_of_total: {proportions_of_total}")
-    steps = {
-        one_time_delta: torch.linspace(
-            0,
-            1,
-            int(torch.round(N * proportions_of_total[one_time_delta]).item()),
-            device=device,
-        )
-        for one_time_delta in proportions_of_total
-    }
-    max_nb_steps = max(len(s) for s in steps.values())
-
-    # expend t_min and t_max to create the linspace
-    t_min_exp = t_min.unsqueeze(1)  # shape [6000, 1]
-    t_max_exp = t_max.unsqueeze(1)  # shape [6000, 1]
-
-    # Interpolation linéaire entre t_min et t_max
-    ts = torch.full(
-        (len(t_min), max_nb_steps), float("nan"), dtype=torch.float, device=device
-    )  # shape [6000, N]
-    this_time_delta_indices_list = []
-
-    for one_time_delta in steps:
-        this_time_delta_indices = time_deltas == one_time_delta
-        this_time_delta_t_min_exp = t_min_exp[this_time_delta_indices]
-        this_time_delta_t_max_exp = t_max_exp[this_time_delta_indices]
-        this_time_delta_ts = (
-            this_time_delta_t_min_exp
-            + (this_time_delta_t_max_exp - this_time_delta_t_min_exp)
-            * steps[one_time_delta]
-        )
-        if direction_tosample == "forward":
-            this_time_delta_ts = this_time_delta_ts[:, :-1]
-        elif direction_tosample == "backward":
-            this_time_delta_ts = this_time_delta_ts[:, 1:]
-
-        # Pad this_time_delta_ts with NaNs to have shape [num_samples, max_nb_steps]
-        pad_size = max_nb_steps - this_time_delta_ts.shape[1]
-        if pad_size > 0:
-            nan_pad = torch.full(
-                (this_time_delta_ts.shape[0], pad_size), float("nan"), device=device
-            )
-            this_time_delta_ts = torch.cat([this_time_delta_ts, nan_pad], dim=1)
-
-        ts[this_time_delta_indices] = this_time_delta_ts
-
-    dt = ts.diff(dim=1)[
-        torch.arange(ts.size(0)), (~ts.diff(dim=1).isnan()).float().argmax(dim=1)
-    ]
-    dt = dt.unsqueeze(1)
-    if direction_tosample == "backward":
-        ts = ts.flip(dims=[1])
-        dt = dt.flip(dims=[1])
+    dt_step = (full_traj_tmax - full_traj_tmin) / N
 
     t_pairs_bridges = args.t_pairs_bridges
+    t_pairs_bridges = torch.tensor(t_pairs_bridges,device=device)
 
-    # Determine sigma: if it's a float, use as is; if it's a sequence, select per sample
+    ts_list = []
+    dt_list = []
+
+    for time_pair in t_pairs_bridges:
+        t_start = time_pair[0]
+        t_end = time_pair[1]
+
+        if direction_tosample == "forward":
+            ts_list.append(torch.arange(t_start, t_end, step=dt_step,device=device))
+
+        elif direction_tosample == "backward":
+            ts_list.append(torch.arange(t_end, t_start, step=-dt_step, device=device))
+
+        dt_list.append(dt_step / (t_end - t_start))
+
+    max_nb_steps = max(len(ts) for ts in ts_list)
+
+    ts = torch.full(
+        (len(t_pairs), max_nb_steps), float("nan"), dtype=torch.float, device=device
+    )
+    
+    dt = torch.full((len(t_pairs),1), float("nan"), dtype=torch.float,device = device)
+
+    for num_bridge, t_bridge in enumerate(t_pairs_bridges):
+        # Pad this_time_delta_ts with NaNs to have shape [num_samples, max_nb_steps]
+        pad_size = max_nb_steps - len(ts_list[num_bridge])
+        this_t_pair_indice = (t_pairs == t_bridge).all(dim=1)
+        if pad_size > 0:
+            nan_pad = torch.full(
+                (1,pad_size), float("nan"), device=device
+            )
+            ts_list[num_bridge] = torch.cat([ts_list[num_bridge].unsqueeze(0), nan_pad], dim=1)
+
+            
+
+        ts[this_t_pair_indice] = ts_list[num_bridge]
+        dt[this_t_pair_indice] = dt_list[num_bridge]
+
+# Determine sigma: if it's a float, use as is; if it's a sequence, select per sample
     if args.sigma_mode == "mono":
         sigma = args.sigma
         sigma = torch.full((len(ts),), args.sigma, device=device)
@@ -272,11 +247,12 @@ def sample_sde(
     score = net_dict[direction_tosample].eval()
 
     sigma = args.coeff_sigma * sigma
-
+    
     for i in range(
         max_nb_steps
     ):  # TODO: clean the [mask]s # Starting from one to avoid the first nan which add just noise
         mask = ~torch.isnan(ts[:, i])  # mask to filter out NaNs
+        
         t = ts[mask, i].unsqueeze(
             1
         )  # shape [batchsize, 1], chaque sample a son propre t
@@ -316,6 +292,7 @@ def sample_sde(
                 * torch.sqrt(dt[mask])
             )
     return z
+        
 
 
 @torch.no_grad()

@@ -39,7 +39,7 @@ class ExperimentConfig:
 
         self.first_coupling = "ind"
         self.sigma = 1
-        self.sigma_mode = "mono"
+        self.sigma_mode = "multi_dim"
         self.sigma_linspace = "final"
         self.coeff_sigma = 1
         self.num_simulation_steps = 80
@@ -56,7 +56,7 @@ class ExperimentConfig:
         # Warmup epoch
 
         self.warmup = True
-        self.warmup_nb_inner_opt_steps = 2000
+        self.warmup_nb_inner_opt_steps = 5000
         self.warmup_epoch = 0
 
         # ───── Optimization
@@ -155,14 +155,14 @@ class DistributionConfig:
                 dim=self.dim,
             ),
             GaussianConfig(
-                time=2,
+                time=4,
                 mean=[5, 9],
                 std=[1, 1],
                 n_samples=self.n_samples,
                 dim=self.dim,
             ),
             GaussianConfig(
-                time=3,
+                time=5,
                 mean=[1, 5],
                 std=[1, 1],
                 n_samples=self.n_samples,

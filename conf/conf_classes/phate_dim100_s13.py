@@ -17,7 +17,7 @@ class ExperimentConfig:
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES_PHATE"
         self.experiment_dir = "experiments_debug"
-        self.experiment_name = "debug_ema_001"
+        self.experiment_name = "debug_leave_out_01"
 
         # ───── Data Parameters
         self.dim = 100
@@ -25,7 +25,7 @@ class ExperimentConfig:
         self.n_distributions = 5
         self.separation_train_test = True
         self.nb_points_test = 1000
-        self.leave_out_list = []
+        self.leave_out_list = [1]
 
         # ───── Dataset Configuration
         self.distributions = DistributionConfig(dim=self.dim)

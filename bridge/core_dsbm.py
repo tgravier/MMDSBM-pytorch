@@ -295,13 +295,15 @@ class IMF_DSBM:
                 case _:
                     raise ValueError(f"Unknown direction: {direction_to_train}")
 
+
+
             zend = sampler.sample_sde(  # TODO see sample SDE
                 args,
                 zstart=zstart,
                 t_pairs=t_pairs,
                 full_traj_tmin=self.min_time,
                 full_traj_tmax=self.max_time,
-                net_dict=self.net_dict,
+                net_dict=self.ema_dict,
                 direction_tosample=previous_direction,
                 N=self.args.num_simulation_steps,
                 device=self.accelerator.device,
