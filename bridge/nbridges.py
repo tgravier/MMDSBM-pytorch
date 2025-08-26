@@ -48,6 +48,7 @@ class N_Bridges(IMF_DSBM):
 
         self._validate_config_time_unique(distributions, "train")
 
+
         if len(distributions) != n_distribution:
             raise ValueError("Length of distributions must match n_distribution")
 
@@ -223,49 +224,46 @@ class N_Bridges(IMF_DSBM):
         return x_pairs, all_times
 
     def train(self):
-        skip_forward = False
-        if getattr(self.args, "resume_train", False):
-            if self.args.previous_direction_to_train == "forward":
-                skip_forward = True
 
-        for outer_iter_idx in range(
-            self.args.resume_train_nb_outer_iterations, self.args.nb_outer_iterations
-        ):
+        for outer_iter_idx in range(self.args.nb_outer_iterations):
+
+            if outer_iter_idx == 0:
+
+                direction_to_train = self.args.first_direction
+
             print(f"\n[Epoch {outer_iter_idx}]")
 
             forward_pairs = list(zip(self.datasets_train[:-1], self.datasets_train[1:]))
 
-            if not (
-                skip_forward
-                and outer_iter_idx == self.args.resume_train_nb_outer_iterations
-            ):
-                print("Training FORWARD bridge")
+            print(f"Training {direction_to_train.upper()} bridge")
 
-                direction_to_train = "forward"
-                x_pairs, t_pairs = self.generate_dataset_pairs(forward_pairs)
+            
+            x_pairs, t_pairs = self.generate_dataset_pairs(forward_pairs)
 
-                loss_curve, grad_curve, net_dict, ema_dict = self.train_one_direction(
-                    direction=direction_to_train,
-                    x_pairs=x_pairs,
-                    t_pairs=t_pairs,
-                    outer_iter_idx=outer_iter_idx,
-                )
+            loss_curve, grad_curve, net_dict, ema_dict = self.train_one_direction(
+                direction=direction_to_train,
+                x_pairs=x_pairs,
+                t_pairs=t_pairs,
+                outer_iter_idx=outer_iter_idx,
+            )
 
-                self.orchestrate_experiment(
-                    args=self.args,
-                    outer_iter_idx=outer_iter_idx,
-                    direction_to_train=direction_to_train,
-                    net_dict=ema_dict,  # TODO create an intermediary pointer if ema_dict is false : like net_inference -> ema_dict or net_dict
-                    loss_curve=loss_curve,
-                    grad_curve=grad_curve,
-                )
+            self.orchestrate_experiment(
+                args=self.args,
+                outer_iter_idx=outer_iter_idx,
+                direction_to_train=direction_to_train,
+                net_dict=ema_dict,  # TODO create an intermediary pointer if ema_dict is false : like net_inference -> ema_dict or net_dict
+                loss_curve=loss_curve,
+                grad_curve=grad_curve,
+            )
 
-            else:
-                print("Skipping FORWARD training for first resumed iteration")
+            if direction_to_train == "backward":
+                direction_to_train ="forward"
+            elif direction_to_train == "forward":
+                direction_to_train = "backward"
 
-            print("Training BACKWARD bridge")
+            print(f"Training {direction_to_train.upper()} bridge")
 
-            direction_to_train = "backward"
+
 
             x_pairs, t_pairs = self.generate_dataset_pairs(forward_pairs)
             loss_curve, grad_curve, net_dict, ema_dict = self.train_one_direction(
@@ -283,6 +281,11 @@ class N_Bridges(IMF_DSBM):
                 loss_curve=loss_curve,
                 grad_curve=grad_curve,
             )
+            
+            if direction_to_train == "backward":
+                direction_to_train ="forward"
+            elif direction_to_train == "forward":
+                direction_to_train = "backward"
 
     def inference_test(
         self,

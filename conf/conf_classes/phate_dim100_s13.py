@@ -17,7 +17,7 @@ class ExperimentConfig:
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES_PHATE"
         self.experiment_dir = "experiments_debug"
-        self.experiment_name = "debug_leave_out_01"
+        self.experiment_name = "phate_dim_100_s14_01"
 
         # ───── Data Parameters
         self.dim = 100
@@ -25,36 +25,37 @@ class ExperimentConfig:
         self.n_distributions = 5
         self.separation_train_test = True
         self.nb_points_test = 1000
-        self.leave_out_list = [1]
+        self.leave_out_list = []
 
         # ───── Dataset Configuration
         self.distributions = DistributionConfig(dim=self.dim)
 
         # ───── Simulation Parameters
-
+        self.method= "heun"
+        self.first_direction = "backward"
         self.first_coupling = "ind"
         self.sigma = 1.505
         self.sigma_mode = "multi_dim"
         self.sigma_linspace = "final"
-        self.coeff_sigma = 1
-        self.num_simulation_steps = 60
+        self.coeff_sigma = 0.30
+        self.num_simulation_steps = 480
         self.nb_inner_opt_steps = 5000
-        self.nb_outer_iterations = 100
+        self.nb_outer_iterations = 40
         self.eps = 1e-3
-        self.loss_scale = False
+        self.loss_scale = True
 
 
         # ───── EMA Parameters
 
         self.ema = True
-        self.decay_ema = 0
+        self.decay_ema = 0.9999
 
 
         # Warmup epoch
 
         self.warmup = True
-        self.warmup_nb_inner_opt_steps = 5000
-        self.warmup_epoch = 2
+        self.warmup_nb_inner_opt_steps = 10000
+        self.warmup_epoch = 0
         # ───── Optimization
         self.lr = 2e-4
         self.grad_clip = 20

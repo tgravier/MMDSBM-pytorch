@@ -17,27 +17,29 @@ class ExperimentConfig:
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES_PHATE"
         self.experiment_dir = "experiments_debug"
-        self.experiment_name = "phate_multi_sigma_dim_08"
+        self.experiment_name = "phate_multi_sigma_dim_non_norme_03_LOO13_11"
 
         # ───── Data Parameters
         self.dim = 100
-        self.batch_size = 512
+        self.batch_size = 128
         self.n_distributions = 5
         self.separation_train_test = True
-        self.nb_points_test = 1000
-        self.leave_out_list = []
+        self.nb_points_test = 500
+        self.leave_out_list = [1,3]
 
         # ───── Dataset Configuration
         self.distributions = DistributionConfig(dim=self.dim)
 
         # ───── Simulation Parameters
-
+        self.method = "heun"
+        self.first_direction = "backward"
         self.first_coupling = "ind"
-        self.sigma = [30, 30]
-        self.sigma_mode = "multi_dim"
+        self.sigma = 0.5
+        self.sigma_mode = "mono"
         self.sigma_linspace = "final"
-        self.num_simulation_steps = 120
-        self.nb_inner_opt_steps = 10000
+        self.coeff_sigma = 1
+        self.num_simulation_steps = 480
+        self.nb_inner_opt_steps = 5000
         self.nb_outer_iterations = 20
         self.eps = 1e-3
         self.loss_scale = True
@@ -52,17 +54,17 @@ class ExperimentConfig:
         # Warmup epoch
 
         self.warmup = True
-        self.warmup_nb_inner_opt_steps = 10000
-        self.warmup_epoch = 5000
+        self.warmup_nb_inner_opt_steps = 5000
+        self.warmup_epoch = 0
         # ───── Optimization
         self.lr = 2e-4
         self.grad_clip = 20
-        self.optimizer_type = "adam"
+        self.optimizer_type = "adamw"
         self.optimizer_params = {"betas": (0.9, 0.999), "weight_decay": 0.0}
 
         # --- Network General
 
-        self.model_name = "mlp"
+        self.model_name = "mlp_film"
 
         # ───── Network: Forward score model
 
@@ -91,6 +93,7 @@ class ExperimentConfig:
         # ───── Metric
 
         self.log_wandb_loss = True
+        self.rescale = False
 
         self.display_swd = True
         self.log_wandb_swd = True

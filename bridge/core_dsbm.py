@@ -34,7 +34,7 @@ class IMF_DSBM:
         eps,
     ):
         # TODO comment each parameters of this function
-
+        self.first_pass = True
         self.args = args
         self.accelerator = args.accelerator
 
@@ -102,7 +102,7 @@ class IMF_DSBM:
 
         nb_inner_opt_steps = self.args.nb_inner_opt_steps
 
-        if self.args.warmup and outer_iter_idx == 0:
+        if self.args.warmup and outer_iter_idx == 0 and self.first_pass:
             print(f"WARMUP STEP {direction}")
 
             nb_inner_opt_steps = self.args.warmup_nb_inner_opt_steps
@@ -185,7 +185,7 @@ class IMF_DSBM:
             self.optimizer[direction].step()
             if (
                 outer_iter_idx == 0
-                and inner_opt_step == self.args.warmup_nb_inner_opt_steps - 1
+                and inner_opt_step == nb_inner_opt_steps - 1
             ):
                 self.ema_dict[direction].ema_model.load_state_dict(
                     self.net_dict[direction].state_dict()
@@ -197,6 +197,7 @@ class IMF_DSBM:
             loss_curve.append(loss.item())
             grad_curve.append(total_norm)
 
+        self.first_pass = False
         self.clear()
         return (
             loss_curve,
@@ -219,8 +220,8 @@ class IMF_DSBM:
         outer_iter_idx: int,
         first_coupling=None,
     ):
-        if outer_iter_idx <= self.args.warmup_epoch:
-            if direction_to_train == "forward":
+        if outer_iter_idx <= self.args.warmup_epoch and self.first_pass:
+            if direction_to_train == "forward" :
                 if first_coupling == "ref":
                     zstart = x_pairs[:, 0]
                     zend = (
