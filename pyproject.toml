@@ -6,6 +6,8 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "accelerate>=1.7.0",
+    "datasets>=4.0.0",
+    "diffusers>=0.35.1",
     "geomloss>=0.2.6",
     "ipykernel>=6.29.5",
     "ipywidgets>=8.1.7",
@@ -18,12 +20,15 @@ dependencies = [
     "phate>=1.0.11",
     "pillow>=11.2.1",
     "pot>=0.9.5",
+    "pyarrow>=21.0.0",
     "python-magic>=0.4.27",
     "scikit-learn>=1.6.1",
     "scipy>=1.15.3",
+    "sentencepiece>=0.2.1",
     "torch>=2.7.0",
     "torchaudio>=2.7.0",
     "torchvision>=0.22.0",
     "tqdm>=4.67.1",
+    "transformers>=4.55.4",
     "wandb>=0.20.1",
 ]

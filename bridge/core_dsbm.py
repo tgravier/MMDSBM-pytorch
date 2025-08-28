@@ -197,7 +197,9 @@ class IMF_DSBM:
             loss_curve.append(loss.item())
             grad_curve.append(total_norm)
 
-        self.first_pass = False
+        if outer_iter_idx > 0 :
+
+            self.first_pass = False
         self.clear()
         return (
             loss_curve,

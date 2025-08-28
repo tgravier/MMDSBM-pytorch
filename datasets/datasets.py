@@ -9,6 +9,7 @@ from sklearn.preprocessing import StandardScaler
 from typing import Union, Tuple, Optional
 import joblib
 
+
 # datasets/datasets.py
 
 # ============================
@@ -17,7 +18,13 @@ import joblib
 
 
 class TimedDataset(Dataset):
-    def __init__(self, data: torch.Tensor, time: float, path:Optional[str]=None):
+    def __init__(
+        self,
+        data: torch.Tensor,
+        time: float,
+        path: Optional[str] = None,
+        type: Optional[str] = None,
+    ):
         if not isinstance(time, (float, int)):
             raise TypeError(f"'time' must be a float or int, got {type(time)}")
         self.data = data
@@ -34,34 +41,31 @@ class TimedDataset(Dataset):
         return self.time
 
     def get_all(self, rescale_data=False):
-
         if not rescale_data:
-
             return self.data
-        
-        if rescale_data:
 
+        if rescale_data:
             if self.path is None:
-                raise ValueError("Path to scaler.pkl must be provided to inverse rescale data.")
-            
+                raise ValueError(
+                    "Path to scaler.pkl must be provided to inverse rescale data."
+                )
+
             path = os.path.dirname(self.path)
             scaler_path = os.path.join(path, "scaler.pkl")
-            
+
             if not os.path.exists(scaler_path):
                 raise FileNotFoundError(f"Scaler file not found at {scaler_path}")
 
             scaler = joblib.load(scaler_path)
-            inversed_data = torch.tensor(scaler.inverse_transform(self.data.cpu().numpy()))
+            inversed_data = torch.tensor(
+                scaler.inverse_transform(self.data.cpu().numpy())
+            )
             return inversed_data
-    
-    def get_path(self):
 
+    def get_path(self):
         return self.path
 
-            
-    
     def get_variance(self):
-
         return self.data.var(dim=0, unbiased=False)
 
     def __repr__(self):
@@ -74,9 +78,7 @@ class TimedDataset(Dataset):
 
 
 def load_dataset(
-    config: DatasetConfig,
-    separation_train_test: bool = False,
-    nb_points_test: int = 0
+    config: DatasetConfig, separation_train_test: bool = False, nb_points_test: int = 0
 ) -> Union[TimedDataset, Tuple[TimedDataset, TimedDataset]]:
     name = config.name
     params = config.params
@@ -99,11 +101,10 @@ def load_dataset(
 
         data = np.random.normal(loc=mean, scale=std, size=(n, dim))
         if separation_train_test:
-            data_train, data_test = random_split(torch.tensor(data, dtype=torch.float32), nb_points_test)
-            return (
-                TimedDataset(data_train, time),
-                TimedDataset(data_test, time)
+            data_train, data_test = random_split(
+                torch.tensor(data, dtype=torch.float32), nb_points_test
             )
+            return (TimedDataset(data_train, time), TimedDataset(data_test, time))
         return TimedDataset(torch.tensor(data, dtype=torch.float32), time)
 
     elif name == "circle":
@@ -117,21 +118,19 @@ def load_dataset(
             axis=1,
         )
         if separation_train_test:
-            data_train, data_test = random_split(torch.tensor(X, dtype=torch.float32), nb_points_test)
-            return (
-                TimedDataset(data_train, time),
-                TimedDataset(data_test, time)
+            data_train, data_test = random_split(
+                torch.tensor(X, dtype=torch.float32), nb_points_test
             )
+            return (TimedDataset(data_train, time), TimedDataset(data_test, time))
         return TimedDataset(torch.tensor(X, dtype=torch.float32), time)
 
     elif name == "moon":
         X, _ = make_moons(n_samples=n, noise=params.get("noise", 0.1))
         if separation_train_test:
-            data_train, data_test = random_split(torch.tensor(X, dtype=torch.float32), nb_points_test)
-            return (
-                TimedDataset(data_train, time),
-                TimedDataset(data_test, time)
+            data_train, data_test = random_split(
+                torch.tensor(X, dtype=torch.float32), nb_points_test
             )
+            return (TimedDataset(data_train, time), TimedDataset(data_test, time))
         return TimedDataset(torch.tensor(X, dtype=torch.float32), time)
 
     elif name == "gaussian_mixture":
@@ -152,13 +151,14 @@ def load_dataset(
         data = np.zeros((n, dim), dtype=np.float32)
         for i in range(k):
             idx = component_indices == i
-            data[idx] = np.random.normal(loc=means[i], scale=stds[i], size=(np.sum(idx), dim))
-        if separation_train_test:
-            data_train, data_test = random_split(torch.tensor(data, dtype=torch.float32), nb_points_test)
-            return (
-                TimedDataset(data_train, time),
-                TimedDataset(data_test, time)
+            data[idx] = np.random.normal(
+                loc=means[i], scale=stds[i], size=(np.sum(idx), dim)
             )
+        if separation_train_test:
+            data_train, data_test = random_split(
+                torch.tensor(data, dtype=torch.float32), nb_points_test
+            )
+            return (TimedDataset(data_train, time), TimedDataset(data_test, time))
         return TimedDataset(torch.tensor(data, dtype=torch.float32), time)
 
     elif name == "s_curve":
@@ -166,11 +166,10 @@ def load_dataset(
         X, _ = make_s_curve(n_samples=n, noise=noise)
         X_2d = X[:, [0, 2]]
         if separation_train_test:
-            data_train, data_test = random_split(torch.tensor(X_2d, dtype=torch.float32), nb_points_test)
-            return (
-                TimedDataset(data_train, time),
-                TimedDataset(data_test, time)
+            data_train, data_test = random_split(
+                torch.tensor(X_2d, dtype=torch.float32), nb_points_test
             )
+            return (TimedDataset(data_train, time), TimedDataset(data_test, time))
         return TimedDataset(torch.tensor(X_2d, dtype=torch.float32), time)
 
     elif name == "phate_traj_dim2":
@@ -183,15 +182,57 @@ def load_dataset(
         if "pcs" not in data_npz:
             raise ValueError(f"File '{path}' must contain key 'pcs'.")
         pcs = data_npz["pcs"]
-        pcs = pcs[:,:dim]
+        pcs = pcs[:, :dim]
 
         if separation_train_test:
-            data_train, data_test = random_split(torch.tensor(pcs, dtype=torch.float32), nb_points_test)
-            return (
-                TimedDataset(data_train, time,path),
-                TimedDataset(data_test, time,path)
+            data_train, data_test = random_split(
+                torch.tensor(pcs, dtype=torch.float32), nb_points_test
             )
-        return TimedDataset(torch.tensor(pcs, dtype=torch.float32), time,path)
+            return (
+                TimedDataset(data_train, time, path),
+                TimedDataset(data_test, time, path),
+            )
+        return TimedDataset(torch.tensor(pcs, dtype=torch.float32), time, path)
+
+    elif name == "biotine_latent":
+        path = params["file_path"]
+        if not os.path.exists(path):
+            raise FileNotFoundError(
+                f"Expected file '{path}' for time={time} not found."
+            )
+        data_pt = torch.load(path)
+        data_pt = data_pt.view(data_pt.shape[0], -1)
+
+        if separation_train_test:
+            data_train, data_test = random_split(data_pt, nb_points_test)
+            return (
+                TimedDataset(data_train, time, path),
+                TimedDataset(data_test, time, path),
+            )
+        return TimedDataset(data_pt, time, path, type="large_scale")
+
+    elif name == "mnist":
+        # Récupérer le chemin du fichier .pt directement depuis les paramètres
+        path = params["file_path"]
+
+        if not os.path.exists(path):
+            raise FileNotFoundError(
+                f"Expected file '{path}' for time={time} not found."
+            )
+
+        # Charger le fichier .pt
+        data_pt = torch.load(path)
+
+        # Flatten en (num_samples, -1)
+        data_pt = data_pt.view(data_pt.shape[0], -1)
+
+        if separation_train_test:
+            data_train, data_test = random_split(data_pt, nb_points_test)
+            return (
+                TimedDataset(data_train, time, path),
+                TimedDataset(data_test, time, path),
+            )
+        return TimedDataset(data_pt, time, path, type="large_scale")
 
     else:
         raise ValueError(f"Unknown dataset name: {name}")
@@ -212,5 +253,3 @@ def random_split(data_tensor, nb_points_test):
     data_test = data_tensor[test_indices]
 
     return (data_train, data_test)
-
-

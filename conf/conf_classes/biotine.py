@@ -1,5 +1,9 @@
 from accelerate import Accelerator
-from datasets.datasets_registry import GaussianConfig, GaussianMixtureConfig, PhateFromTrajectoryConfig
+from datasets.datasets_registry import (
+    GaussianConfig,
+    GaussianMixtureConfig,
+    PhateFromTrajectoryConfig,
+)
 
 
 from accelerate import Accelerator
@@ -13,19 +17,19 @@ import os
 class ExperimentConfig:
     def __init__(self):
         # ───── Reproducibility
-        self.seed = 42
 
         # ───── Experiment Info
-        self.project_name = "DSBM_N_BRIDGES"
+        self.project_name = "DSBM_N_BRIDGES_BIOTINE"
         self.experiment_dir = "experiments_debug"
-        self.experiment_name = "debug_inference_test_06"
+        self.experiment_name = "biotine_7d_01"
         self.experiment_type = "latent"
+        self.seed = 13
 
         # ───── Data Parameters
-        self.dim = 100
-        self.batch_size = 256
-        self.n_distributions = 5
-        self.separation_train_test = True
+        self.dim = 1024
+        self.batch_size = 64
+        self.n_distributions = 7
+        self.separation_train_test = False
         self.nb_points_test = 1000
         self.leave_out_list = []
 
@@ -34,19 +38,22 @@ class ExperimentConfig:
 
         # ───── Simulation Parameters
 
+        self.first_direction = "backward"
+        self.coeff_sigma = 1
         self.first_coupling = "ind"
-        self.sigma = 0.5
-        self.num_simulation_steps = 60
-        self.nb_inner_opt_steps = 50000
-        self.nb_outer_iterations = 20
+        self.sigma = 0.3
+        self.sigma_mode = "mono"
+        self.sigma_linspace = None
+        self.num_simulation_steps = 600
+        self.nb_inner_opt_steps = 20000
+        self.nb_outer_iterations = 40
         self.eps = 1e-3
-
+        self.loss_scale = True
 
         # ───── EMA Parameters
 
         self.ema = True
-        self.decay_ema = 0.999
-
+        self.decay_ema = 0.9999
 
         # Warmup epoch
 
@@ -55,27 +62,27 @@ class ExperimentConfig:
         self.warmup_epoch = 0
         # ───── Optimization
         self.lr = 2e-4
-        self.grad_clip = 20
-        self.optimizer_type = "adam"
-        self.optimizer_params = {"betas": (0.9, 0.999), "weight_decay": 0.0}
+        self.grad_clip = 1
+        self.optimizer_type = "adamw"
+        self.optimizer_params = {"betas": (0.9, 0.999), "weight_decay": 0.01}
 
         # --- Network General
 
-        self.model_name = "mlp"
+        self.model_name = "mlp_film"
 
         # ───── Network: Forward score model
 
-        self.net_fwd_layers = [256, 256,]
-        self.net_fwd_time_dim = 128
+        self.net_fwd_layers = [2048, 2048]
+        self.net_fwd_time_dim = 512
 
         # ───── Network: Backward score model
-        self.net_bwd_layers = [256, 256,]
-        self.net_bwd_time_dim = 128
+        self.net_bwd_layers = [2048, 2048]
+        self.net_bwd_time_dim = 512
 
         # ----- Inference
 
-        self.sigma_inference = 0.1
-        self.num_sample_metric = 1000
+        self.sigma_inference = self.sigma
+        self.num_sample_metric = 10
 
         # ───── Visualisation
         self.fps = 20
@@ -89,28 +96,32 @@ class ExperimentConfig:
 
         # ───── Metric
 
+        self.rescale = False
+
         self.log_wandb_loss = True
 
         self.display_swd = False
         self.log_wandb_swd = False
         self.display_swd_n_epoch = 1
 
-    
         self.display_mmd = False
         self.log_wandb_mmd = False
         self.display_mmd_n_epoch = 1
         self.mmd_kernel = "rbf"  # Options: "gaussian", "laplacian", "energy", "rbf"
-        self.mmd_blur = 1.0 
-        
+        self.mmd_blur = 1.0
+
         self.display_energy = False
         self.log_wandb_energy = False
         self.display_energy_n_epoch = 1
-
 
         # ───── Save Networks
 
         self.save_networks = True
         self.save_networks_n_epoch = 1
+
+        # ------- Save Generation
+
+        self.save_generation = True
 
         # ───── Accelerator
         self.accelerator = Accelerator()
@@ -121,22 +132,25 @@ class ExperimentConfig:
 
         self.debug = True
 
+
 def get_file_path(base_dir, time):
     return os.path.join(base_dir, f"time_{time}.pt")
 
+
 class DistributionConfig:
-    def __init__(self, dim:int, n_samples: int = 2381):
+    def __init__(self, dim: int, n_samples: int = 2381):
         self.dim = dim
-        
+
         base_dir = "/projects/static2dynamic/datasets/biotine/SD2_latent_codes"
 
-        times = list(range(19))
-        self.distributions_list = [
+        times = list(range(0, 19, 3))
+        real_times = list(range(0, 7))
+
+        self.distributions = [
             BiotineConfig(
-                time=t,
-                dim=dim,
-                file_path=get_file_path(base_dir, t + 1),
+            time=t,
+            dim=dim,
+            file_path=get_file_path(base_dir, t + 1),
             )
-            for t in times
+            for t, r_t in zip(times, real_times)
         ]
-        

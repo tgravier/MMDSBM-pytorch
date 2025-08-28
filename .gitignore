@@ -9,3 +9,5 @@ __pycache__/
 DSBM-Gaussian.py
 
 notebooks/
+
+datasets/data/mnist

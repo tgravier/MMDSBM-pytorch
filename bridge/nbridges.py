@@ -36,18 +36,17 @@ class N_Bridges(IMF_DSBM):
         tracking_logger,
         n_distribution: int,
         distributions: Sequence[DatasetConfig],
-        inference: bool
+        inference: bool,
     ):
         self.args = args
         self.args.inference = inference
-        
+
         self.net_fwd_ema = net_fwd_ema
         self.net_bwd_ema = net_bwd_ema
 
         self.tracking_logger = tracking_logger
 
         self._validate_config_time_unique(distributions, "train")
-
 
         if len(distributions) != n_distribution:
             raise ValueError("Length of distributions must match n_distribution")
@@ -72,9 +71,7 @@ class N_Bridges(IMF_DSBM):
         self.args.t_pairs_bridges = self.list_t_pairs_bridges(self.datasets_train)
 
         if self.args.sigma_mode == "multi_dim":
-
             args.sigma_tensor_list = self.get_sigma_multi_dim(self.datasets_train)
-
 
         super().__init__(
             args=args,
@@ -94,19 +91,12 @@ class N_Bridges(IMF_DSBM):
         sigma_tensor_list = []
 
         for ds in time_datasets_list:
-
             sigma_tensor_list.append(ds.get_variance())
-        
-        
-        sigma_tensor_list = torch.stack(sigma_tensor_list, dim =0)
+
+        sigma_tensor_list = torch.stack(sigma_tensor_list, dim=0)
         sigma_tensor_list = sigma_tensor_list.to(device=self.args.accelerator.device)
-        
+
         return sigma_tensor_list
-        
-        
-
-            
-
 
     def leave_out_datasets(self, time_datasets_list):
         datasets_train_filtered = []
@@ -122,9 +112,8 @@ class N_Bridges(IMF_DSBM):
         min_time = min(float(ds.get_time()) for ds in datasets)
 
         return min_time, max_time
-    
-    def list_t_pairs_bridges(self, datasets):
 
+    def list_t_pairs_bridges(self, datasets):
         times = [float(ds.get_time()) for ds in datasets]
         t_pairs = [(times[i], times[i + 1]) for i in range(len(times) - 1)]
         return t_pairs
@@ -224,11 +213,8 @@ class N_Bridges(IMF_DSBM):
         return x_pairs, all_times
 
     def train(self):
-
         for outer_iter_idx in range(self.args.nb_outer_iterations):
-
             if outer_iter_idx == 0:
-
                 direction_to_train = self.args.first_direction
 
             print(f"\n[Epoch {outer_iter_idx}]")
@@ -237,7 +223,6 @@ class N_Bridges(IMF_DSBM):
 
             print(f"Training {direction_to_train.upper()} bridge")
 
-            
             x_pairs, t_pairs = self.generate_dataset_pairs(forward_pairs)
 
             loss_curve, grad_curve, net_dict, ema_dict = self.train_one_direction(
@@ -257,13 +242,11 @@ class N_Bridges(IMF_DSBM):
             )
 
             if direction_to_train == "backward":
-                direction_to_train ="forward"
+                direction_to_train = "forward"
             elif direction_to_train == "forward":
                 direction_to_train = "backward"
 
             print(f"Training {direction_to_train.upper()} bridge")
-
-
 
             x_pairs, t_pairs = self.generate_dataset_pairs(forward_pairs)
             loss_curve, grad_curve, net_dict, ema_dict = self.train_one_direction(
@@ -281,9 +264,9 @@ class N_Bridges(IMF_DSBM):
                 loss_curve=loss_curve,
                 grad_curve=grad_curve,
             )
-            
+
             if direction_to_train == "backward":
-                direction_to_train ="forward"
+                direction_to_train = "forward"
             elif direction_to_train == "forward":
                 direction_to_train = "backward"
 
@@ -297,7 +280,7 @@ class N_Bridges(IMF_DSBM):
         num_samples: int,
         num_steps: int,
         sigma: float,
-        rescale:bool = False,
+        rescale: bool = False,
     ):
         device = next(net_dict[direction_tosample].parameters()).device
 
@@ -309,8 +292,13 @@ class N_Bridges(IMF_DSBM):
             .get_all()
             .to(device)
         )
-
-        idx = torch.randint(0, z0.shape[0], (num_samples,))
+        if args.experiment_type == "latent":
+            generator = torch.Generator(device=device)
+            generator.manual_seed(args.seed)  # Seed fixe pour reproductibilité
+            idx = torch.randint(0, z0.shape[0], (num_samples,), generator=generator, device=device)
+        else:
+            idx = torch.randint(0, z0.shape[0], (num_samples,))
+            
         z0_sampled = z0[idx]
 
         # Build t_pairs as tensor of shape (n_bridge, 2)
@@ -323,10 +311,8 @@ class N_Bridges(IMF_DSBM):
             device=device,
         )
 
-        
-
         generated, time = inference_sample_sde(
-            args= args,
+            args=args,
             zstart=z0_sampled,
             net_dict=net_dict,
             t_pairs=t_pairs_datasets,
@@ -340,23 +326,23 @@ class N_Bridges(IMF_DSBM):
             path = datasets_inference[0].get_path()
             path = os.path.dirname(path)
             if path is None:
-                raise ValueError("Path to scaler.pkl must be provided to inverse rescale data.")
-            
+                raise ValueError(
+                    "Path to scaler.pkl must be provided to inverse rescale data."
+                )
+
             scaler_path = os.path.join(path, "scaler.pkl")
             if not os.path.exists(scaler_path):
                 raise FileNotFoundError(f"Scaler file not found at {scaler_path}")
-            
+
             scaler = joblib.load(scaler_path)
             for tensor in generated:
-    
-
-                inversed_data = torch.tensor(scaler.inverse_transform(tensor.clone().detach().cpu().numpy()), device= device)
+                inversed_data = torch.tensor(
+                    scaler.inverse_transform(tensor.clone().detach().cpu().numpy()),
+                    device=device,
+                )
                 generated_rescale.append(inversed_data)
-            
+
             return generated, generated_rescale, time
-            
-
-
 
         return generated, time
 
@@ -462,6 +448,37 @@ class N_Bridges(IMF_DSBM):
             )
         return last_ckpt_path, archive_path
 
+    def save_generation(self, generated, direction_to_train, outer_iter_idx):
+        """
+        Sauvegarde les trajectoires générées dans un fichier .pt
+
+        Args:
+            generated: Liste de tenseurs de longueur args.num_simulation_steps
+            direction_to_train: Direction de l'entraînement ('forward' ou 'backward')
+            outer_iter_idx: Index de l'itération externe
+        """
+        # Créer le répertoire de sauvegarde
+        base_dir = os.path.join(self.args.experiment_dir, self.args.experiment_name)
+        trajectories_dir = os.path.join(base_dir, "trajectories_tensor")
+        os.makedirs(trajectories_dir, exist_ok=True)
+
+        # Convertir la liste de tenseurs en tensor de forme
+        # (num_simulation_steps, num_sample_metric, feature_dim)
+        trajectory_tensor = torch.stack(generated, dim=0)
+
+        # Nom du fichier
+        filename = f"traj_iter_{outer_iter_idx:04d}_direction_{direction_to_train}.pt"
+        filepath = os.path.join(trajectories_dir, filename)
+
+        # Sauvegarder le tenseur
+        torch.save(trajectory_tensor, filepath)
+
+        print(
+            f"Saved trajectory tensor with shape {trajectory_tensor.shape} to {filepath}"
+        )
+
+        return filepath
+
     def orchestrate_experiment(
         self,
         args,
@@ -504,11 +521,14 @@ class N_Bridges(IMF_DSBM):
             args.save_networks and outer_iter_idx % args.save_networks_n_epoch == 0
         )
 
+        do_save_geneneration = (
+            args.save_generation
+        )
+
         # ───── Only run inference if needed
-        if do_plot or do_swd or do_mmd or do_energy:
+        if do_plot or do_swd or do_mmd or do_energy or do_save_geneneration:
             datasets_for_generation = self.leave_out_datasets(datasets_inference)
             if args.rescale:
-
                 generated, generated_rescale, time = self.inference_test(
                     args=args,
                     direction_tosample=direction_to_train,
@@ -518,10 +538,9 @@ class N_Bridges(IMF_DSBM):
                     num_samples=args.num_sample_metric,
                     num_steps=args.num_simulation_steps,
                     sigma=args.sigma_inference,
-                    rescale = args.rescale
+                    rescale=args.rescale,
                 )
             else:
-
                 generated, time = self.inference_test(
                     args=args,
                     direction_tosample=direction_to_train,
@@ -532,7 +551,6 @@ class N_Bridges(IMF_DSBM):
                     num_steps=args.num_simulation_steps,
                     sigma=args.sigma_inference,
                 )
-
 
         else:
             generated, time = None, None
@@ -569,7 +587,6 @@ class N_Bridges(IMF_DSBM):
                 time=time,
                 datasets_inference=datasets_inference,
                 direction_tosample=direction_to_train,
-                
             )
             for t, swd in swd_scores:
                 print(f"[SWD @ t={t:.2f}] = {swd:.4f}")
@@ -581,7 +598,7 @@ class N_Bridges(IMF_DSBM):
                         },
                         step=outer_iter_idx,
                     )
-            
+
             # Remove the first element and compute the mean over the second dimension
             if len(swd_scores) > 1:
                 swd_values = [swd for _, swd in swd_scores[1:]]
@@ -595,15 +612,13 @@ class N_Bridges(IMF_DSBM):
                     step=outer_iter_idx,
                 )
             if args.rescale:
-
                 swd_scores = evaluate_swd_over_time(
-                generated=generated_rescale,
-                time=time,
-                datasets_inference=datasets_inference,
-                direction_tosample=direction_to_train,
-                rescale_data=True
-                
-            )
+                    generated=generated_rescale,
+                    time=time,
+                    datasets_inference=datasets_inference,
+                    direction_tosample=direction_to_train,
+                    rescale_data=True,
+                )
                 for t, swd in swd_scores:
                     print(f"[SWD RESCALE @ t={t:.2f}] = {swd:.4f}")
                     if args.log_wandb_swd:
@@ -614,7 +629,7 @@ class N_Bridges(IMF_DSBM):
                             },
                             step=outer_iter_idx,
                         )
-                
+
                 # Remove the first element and compute the mean over the second dimension
                 if len(swd_scores) > 1:
                     swd_values = [swd for _, swd in swd_scores[1:]]
@@ -626,11 +641,8 @@ class N_Bridges(IMF_DSBM):
                             "epoch": outer_iter_idx,
                         },
                         step=outer_iter_idx,
-                    )              
+                    )
 
-
-
-            
         # ───── MMD
         if do_mmd and generated is not None:
             mmd_scores = evaluate_mmd_over_time(
@@ -667,6 +679,8 @@ class N_Bridges(IMF_DSBM):
                         },
                         step=outer_iter_idx,
                     )
+        if do_save_geneneration:
+            self.save_generation(generated, direction_to_train, outer_iter_idx)
 
         # ───── Save networks
         if do_save:
