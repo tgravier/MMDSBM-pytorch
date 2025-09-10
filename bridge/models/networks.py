@@ -162,12 +162,6 @@ class ScoreNetworkResNet(nn.Module):
         return self.net(x_input, t_encoded)
 
 
-import math
-from typing import List
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-
 
 # --- Gaussian Fourier time embedding (classique pour diffusion) ---
 class GaussianFourierTimeEncoding(nn.Module):
@@ -299,6 +293,7 @@ class ScoreNetworkFILM(nn.Module):
             h = block(h, g, b)
 
         return self.out(h)
+
 
 
 def print_trainable_params(model, name_of_network: str):

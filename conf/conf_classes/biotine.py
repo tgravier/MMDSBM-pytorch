@@ -7,7 +7,7 @@ from datasets.datasets_registry import (
 
 
 from accelerate import Accelerator
-from datasets.datasets_registry import GaussianConfig, CircleConfig, BiotineConfig
+from datasets.datasets_registry import GaussianConfig, CircleConfig, BiotineFlattenConfig
 import os
 
 
@@ -124,7 +124,7 @@ class ExperimentConfig:
         self.save_generation = True
 
         # ───── Accelerator
-        self.accelerator = Accelerator()
+        self.accelerator = Accelerator(dynamo_backend="inductor")
 
         self.gpu_id = 2
 
@@ -147,7 +147,7 @@ class DistributionConfig:
         real_times = list(range(0, 7))
 
         self.distributions = [
-            BiotineConfig(
+            BiotineFlattenConfig(
             time=t,
             dim=dim,
             file_path=get_file_path(base_dir, t + 1),

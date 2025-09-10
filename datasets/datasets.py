@@ -194,7 +194,7 @@ def load_dataset(
             )
         return TimedDataset(torch.tensor(pcs, dtype=torch.float32), time, path)
 
-    elif name == "biotine_latent":
+    elif name == "biotine_latent_flatten":
         path = params["file_path"]
         if not os.path.exists(path):
             raise FileNotFoundError(
@@ -202,6 +202,23 @@ def load_dataset(
             )
         data_pt = torch.load(path)
         data_pt = data_pt.view(data_pt.shape[0], -1)
+
+        if separation_train_test:
+            data_train, data_test = random_split(data_pt, nb_points_test)
+            return (
+                TimedDataset(data_train, time, path),
+                TimedDataset(data_test, time, path),
+            )
+        return TimedDataset(data_pt, time, path, type="large_scale")
+    
+    elif name == "biotine_latent":
+        path = params["file_path"]
+        if not os.path.exists(path):
+            raise FileNotFoundError(
+                f"Expected file '{path}' for time={time} not found."
+            )
+        data_pt = torch.load(path)
+
 
         if separation_train_test:
             data_train, data_test = random_split(data_pt, nb_points_test)

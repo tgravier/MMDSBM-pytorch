@@ -157,24 +157,38 @@ class PhateFromTrajectoryConfig(DatasetConfig):
             file_path=path_to_use
         )
 
-class BiotineConfig(DatasetConfig):
+class BiotineFlattenConfig(DatasetConfig):
     def __init__(self, time: float, dim: int = 2, file_path: Optional[str] = None): # WARNING, each file of the phate data need to be separe in pcs_label_{idx}.npz file not a single file, one file by timesteps
         """
-        Configuration pour le dataset réel 'phate_from_trajectory'.
+        Configuration pour le dataset réel 'biotine' encodé par le VAE de SD, en version flatten (C*H*W).
 
         Args:
             time (float): Temps associé (timestamp ou échelle).
-            embedding_dim (int): Dimension de l'espace d'embedding PHATE (par défaut 2).
             file_path (str): Chemin vers le fichier .npz contenant les embeddings.
         """
 
-        path_to_use = file_path 
+        super().__init__(
+            name="biotine_latent_flatten",
+            time=time,
+            input_dim=dim,
+            file_path=file_path
+        )
+
+class BiotineLatentConfig(DatasetConfig):
+    def __init__(self, time: float, dim: int = 2, file_path: Optional[str] = None): # WARNING, each file of the phate data need to be separe in pcs_label_{idx}.npz file not a single file, one file by timesteps
+        """
+        Configuration pour le dataset réel 'biotine' encodé par le VAE de SD, en version image (C, H, W).
+
+        Args:
+            time (float): Temps associé (timestamp ou échelle).
+            file_path (str): Chemin vers le fichier .npz contenant les embeddings.
+        """
 
         super().__init__(
             name="biotine_latent",
             time=time,
             input_dim=dim,
-            file_path=path_to_use
+            file_path=file_path
         )
 
 class MNISTConfig(DatasetConfig):
