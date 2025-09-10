@@ -163,8 +163,6 @@ class N_Bridges(IMF_DSBM):
             d.get_all().to(self.args.accelerator.device) for d in time_dataset_target
         ]  # (n_times - 1, n_points, data_dim)
 
-        dim = x0[0].size()[-1]
-
         assert len(x0) == len(x1), f"{len(x0)} != {len(x1)}"
 
         all_left_of_pairs = []
@@ -203,9 +201,12 @@ class N_Bridges(IMF_DSBM):
 
         x_pairs = torch.stack([all_left_of_pairs, all_right_of_pairs], dim=1)
         # (n_times - 1, nb_pairs, 2, data_dim)
+        
+        assert x0[0].ndim in (2, 4), f"Expected x0[0] to have 2 or 4 dimensions, but got {x0[0].ndim}"
+        data_dim = x0[0].size()[1:]
         x_pairs = x_pairs.reshape(
-            -1, 2, dim
-        )  # dim extract from x0 at the beginning of this function
+            -1, 2, *data_dim
+        )
         # ((n_times - 1) * nb_pairs, 2, data_dim)
 
         all_times = torch.cat(all_times, dim=0)  # ((n_times - 1) * nb_pairs, 2)

@@ -36,12 +36,12 @@ def get_brownian_bridge(
     z0, z1 = x_pairs[:, 0], x_pairs[:, 1]  # values at t1 and t2
     t1, t2 = t_pairs[:, 0], t_pairs[:, 1]  # time bounds reshaped to [batch, 1]
 
-    t1 = t1.unsqueeze(1)  # [num_samples] -> [num_samples, 1]
-    t2 = t2.unsqueeze(1)
+    t1 = t1.view(*t1.shape, *([1] * (z0.ndim - t1.ndim)))
+    t2 = t2.view(*t2.shape, *([1] * (z0.ndim - t2.ndim)))
 
     # Sample t uniformly in (t1 + eps, t2 - eps) to avoid sqrt(0) issues
-
-    t = torch.rand((z0.shape[0], 1), device=device)
+    t = torch.rand((z0.shape[0]), device=device)
+    t = t.view(*t.shape, *([1] * (z0.ndim - t.ndim)))
 
     t = t1 + (t2 - t1) * ((1 - 2 * args.eps) * t + args.eps)
 
@@ -74,12 +74,12 @@ def get_brownian_bridge(
                 indices = torch.where(mask.squeeze())[0]
 
                 if args.sigma_linspace == "final":
-                    sigma[indices, :] = args.sigma_tensor_list[i + 1, :].unsqueeze(0)
+                    sigma[indices] = args.sigma_tensor_list[i + 1].unsqueeze(0)
                 elif args.sigma_linspace == "linear":
-                    sigma[indices, :] = (1 - s[indices]) * args.sigma_tensor_list[
-                        i, :
+                    sigma[indices] = (1 - s[indices]) * args.sigma_tensor_list[
+                        i
                     ].unsqueeze(0) + s[indices] * args.sigma_tensor_list[
-                        i + 1, :
+                        i + 1
                     ].unsqueeze(0)
 
         elif direction == "backward":
@@ -88,12 +88,12 @@ def get_brownian_bridge(
                 indices = torch.where(mask.squeeze())[0]
 
                 if args.sigma_linspace == "final":
-                    sigma[indices, :] = args.sigma_tensor_list[i, :].unsqueeze(0)
+                    sigma[indices] = args.sigma_tensor_list[i].unsqueeze(0)
                 elif args.sigma_linspace == "linear":
-                    sigma[indices, :] = (1 - s[indices]) * args.sigma_tensor_list[
-                        i, :
+                    sigma[indices] = (1 - s[indices]) * args.sigma_tensor_list[
+                        i
                     ].unsqueeze(0) + s[indices] * args.sigma_tensor_list[
-                        i + 1, :
+                        i + 1
                     ].unsqueeze(0)
 
     # Compute the mean of the Brownian bridge at time t
@@ -117,8 +117,6 @@ def get_brownian_bridge(
     return z_t, t, target, sigma
 
 
-
-
 @torch.no_grad()
 def sample_sde(
     args,
@@ -134,7 +132,7 @@ def sample_sde(
     dt_step = (full_traj_tmax - full_traj_tmin) / N
 
     t_pairs_bridges = args.t_pairs_bridges
-    t_pairs_bridges = torch.tensor(t_pairs_bridges,device=device)
+    t_pairs_bridges = torch.tensor(t_pairs_bridges, device=device)
 
     ts_list = []
     dt_list = []
@@ -144,7 +142,7 @@ def sample_sde(
         t_end = time_pair[1]
 
         if direction_tosample == "forward":
-            ts_list.append(torch.arange(t_start, t_end, step=dt_step,device=device))
+            ts_list.append(torch.arange(t_start, t_end, step=dt_step, device=device))
 
         elif direction_tosample == "backward":
             ts_list.append(torch.arange(t_end, t_start, step=-dt_step, device=device))
@@ -156,25 +154,26 @@ def sample_sde(
     ts = torch.full(
         (len(t_pairs), max_nb_steps), float("nan"), dtype=torch.float, device=device
     )
+
+    dt = torch.full((len(t_pairs),1), float("nan"), dtype=torch.float, device=device)
+
+
     
-    dt = torch.full((len(t_pairs),1), float("nan"), dtype=torch.float,device = device)
 
     for num_bridge, t_bridge in enumerate(t_pairs_bridges):
         # Pad this_time_delta_ts with NaNs to have shape [num_samples, max_nb_steps]
         pad_size = max_nb_steps - len(ts_list[num_bridge])
         this_t_pair_indice = (t_pairs == t_bridge).all(dim=1)
         if pad_size > 0:
-            nan_pad = torch.full(
-                (1,pad_size), float("nan"), device=device
+            nan_pad = torch.full((1, pad_size), float("nan"), device=device)
+            ts_list[num_bridge] = torch.cat(
+                [ts_list[num_bridge].unsqueeze(0), nan_pad], dim=1
             )
-            ts_list[num_bridge] = torch.cat([ts_list[num_bridge].unsqueeze(0), nan_pad], dim=1)
-
-            
 
         ts[this_t_pair_indice] = ts_list[num_bridge]
         dt[this_t_pair_indice] = dt_list[num_bridge]
 
-# Determine sigma: if it's a float, use as is; if it's a sequence, select per sample
+    # Determine sigma: if it's a float, use as is; if it's a sequence, select per sample
     if args.sigma_mode == "mono":
         sigma = args.sigma
         sigma = torch.full((len(ts),), args.sigma, device=device)
@@ -243,16 +242,21 @@ def sample_sde(
                     ) * sigma_i + s_exp * sigma_ip1  # (nb_samples, max_nb_steps, dim)
                     sigma[mask] = sigma_interp[mask]
 
+
     z = zstart.detach().clone()
+    dt = dt.view(*dt.shape, *([1] * (z.ndim - dt.ndim)))
+
+
     score = net_dict[direction_tosample].eval()
 
     sigma = args.coeff_sigma * sigma
-    
+    sigma = sigma.view(*sigma.shape, *([1] * (z.ndim - sigma.ndim)))
+
     for i in range(
         max_nb_steps
     ):  # TODO: clean the [mask]s # Starting from one to avoid the first nan which add just noise
         mask = ~torch.isnan(ts[:, i])  # mask to filter out NaNs
-        
+
         t = ts[mask, i].unsqueeze(
             1
         )  # shape [batchsize, 1], chaque sample a son propre t
@@ -278,7 +282,7 @@ def sample_sde(
             z[mask] = (
                 z[mask]
                 + pred * dt[mask]
-                + sigma[mask, i].unsqueeze(1)
+                + sigma[mask, i]
                 * torch.randn_like(z[mask])
                 * torch.sqrt(dt[mask])
             )
@@ -287,12 +291,11 @@ def sample_sde(
             z[mask] = (
                 z[mask]
                 + pred * dt[mask]
-                + sigma[mask].unsqueeze(1)
+                + sigma[mask]
                 * torch.randn_like(z[mask])
                 * torch.sqrt(dt[mask])
             )
     return z
-        
 
 
 @torch.no_grad()
@@ -390,7 +393,7 @@ def inference_sample_sde(
                     ].unsqueeze(0)
 
     sigma = args.coeff_sigma * sigma
-    score = net_dict[direction_tosample].eval()
+    score = net_dict[direction_tosample].eval().to(device)
 
     z = zstart.detach().clone()
 

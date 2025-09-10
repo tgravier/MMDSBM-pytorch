@@ -9,8 +9,9 @@ from bridge.models.networks import (
     ScoreNetworkResNet,
     print_trainable_params,
 )
+import types
 from bridge.runners.ema import EMA
-
+from diffusers import UNet2DModel
 import torch
 import torch.nn as nn
 import os
@@ -38,14 +39,18 @@ class trainer_bridges(N_Bridges):
         self.distribution_config = self.experiment_config.distribution_cfg
 
         self.instance_gpu_config()
-
-        net_fwd, net_bwd = self.instance_network(
-            model_name=self.experiment_config.model_name,
-            net_fwd_layers=self.experiment_config.net_fwd_layers,
-            net_fwd_time_dim=self.experiment_config.net_fwd_time_dim,
-            net_bwd_layers=self.experiment_config.net_bwd_layers,
-            net_bwd_time_dim=self.experiment_config.net_bwd_time_dim,
-        )
+        if self.experiment_config.model_name == "hf_unet":
+            net_fwd, net_bwd = self.instance_network(
+                model_name=self.experiment_config.model_name,
+            )
+        else:
+            net_fwd, net_bwd = self.instance_network(
+                model_name=self.experiment_config.model_name,
+                net_fwd_layers=self.experiment_config.net_fwd_layers,
+                net_fwd_time_dim=self.experiment_config.net_fwd_time_dim,
+                net_bwd_layers=self.experiment_config.net_bwd_layers,
+                net_bwd_time_dim=self.experiment_config.net_bwd_time_dim,
+            )
 
         self.net_fwd = net_fwd
         self.net_bwd = net_bwd
@@ -89,10 +94,10 @@ class trainer_bridges(N_Bridges):
     def instance_network(
         self,
         model_name,
-        net_fwd_layers,
-        net_fwd_time_dim,
-        net_bwd_layers,
-        net_bwd_time_dim,
+        net_fwd_layers=None,
+        net_fwd_time_dim=None,
+        net_bwd_layers=None,
+        net_bwd_time_dim=None,
     ):
         input_dim = self.experiment_config.dim
         max_time = max(
@@ -132,7 +137,7 @@ class trainer_bridges(N_Bridges):
                 time_dim=net_bwd_time_dim,
                 max_time=max_time,
             )
-        
+
         elif model_name == "mlp_film":
             net_fwd = ScoreNetworkFILM(
                 input_dim=input_dim,
@@ -147,9 +152,45 @@ class trainer_bridges(N_Bridges):
                 layers_widths=net_bwd_layers,
                 activation_fn=activation,
                 time_dim=net_bwd_time_dim,
-                max_time=max_time)
-                
+                max_time=max_time,
+            )
+
+        elif model_name == "hf_unet":
+            net_fwd = UNet2DModel(
+                sample_size=self.experiment_config.sample_size,
+                in_channels=self.experiment_config.nb_channels,
+                out_channels=self.experiment_config.nb_channels,
+                time_embedding_type=self.experiment_config.time_embedding_type,
+                down_block_types=self.experiment_config.down_block_types,
+                block_out_channels=self.experiment_config.block_out_channels,
+                up_block_types=self.experiment_config.up_block_types,
+                layers_per_block=self.experiment_config.layers_per_block,
+            )
+
+            net_bwd = UNet2DModel(
+                sample_size=self.experiment_config.sample_size,
+                in_channels=self.experiment_config.nb_channels,
+                out_channels=self.experiment_config.nb_channels,
+                time_embedding_type=self.experiment_config.time_embedding_type,
+                down_block_types=self.experiment_config.down_block_types,
+                block_out_channels=self.experiment_config.block_out_channels,
+                up_block_types=self.experiment_config.up_block_types,
+                layers_per_block=self.experiment_config.layers_per_block,
+            )
             
+            net_fwd._orig_forward = net_fwd.forward
+            net_bwd._orig_forward = net_bwd.forward
+
+            def wrapped_forward(self, sample, timestep, class_labels=None, return_dict=None):
+                out = self._orig_forward(sample, timestep.squeeze(), return_dict=False)
+
+                return out[0]
+
+            net_fwd.forward = types.MethodType(wrapped_forward, net_fwd)
+            net_bwd.forward = types.MethodType(wrapped_forward, net_bwd)
+
+        else:
+            raise ValueError(f"Unknown model name: {model_name}")
 
         print_trainable_params(net_fwd, "net_fwd")
         print_trainable_params(net_bwd, "net_bwd")

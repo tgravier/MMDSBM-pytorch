@@ -53,14 +53,17 @@ class IMF_DSBM:
         self.net_bwd_ema = net_bwd_ema
 
         self.net_dict = {}
+
         (
-            self.net_dict["forward"],
-            self.net_dict["backward"],
+            self.net_fwd,
+            self.net_bwd,
             self.optimizer["forward"],
             self.optimizer["backward"],
         ) = self.accelerator.prepare(
             net_fwd, net_bwd, optimizer["forward"], optimizer["backward"]
         )
+        self.net_dict["forward"] = self.net_fwd
+        self.net_dict["backward"] = self.net_bwd
 
         self.ema_dict = {
             "forward": self.net_fwd_ema,
@@ -119,18 +122,19 @@ class IMF_DSBM:
                 z0, z1, t_tensor = next(dl)
 
             except StopIteration:
-                del dl , 
+                del dl
 
                 self.clear()
                 dataset = TensorDataset(
-                *self.generate_dataloaders(
-                    args=self.args,
-                    x_pairs=x_pairs,
-                    t_pairs=t_pairs,
-                    direction_to_train=direction,
-                    outer_iter_idx=outer_iter_idx,
-                    first_coupling=self.args.first_coupling,
-            ))
+                    *self.generate_dataloaders(
+                        args=self.args,
+                        x_pairs=x_pairs,
+                        t_pairs=t_pairs,
+                        direction_to_train=direction,
+                        outer_iter_idx=outer_iter_idx,
+                        first_coupling=self.args.first_coupling,
+                    )
+                )
                 dl = iter(
                     self.accelerator.prepare(
                         DataLoader(
@@ -183,22 +187,24 @@ class IMF_DSBM:
                 self.net_dict[direction].parameters(), self.args.grad_clip
             )
             self.optimizer[direction].step()
-            if (
-                outer_iter_idx == 0
-                and inner_opt_step == nb_inner_opt_steps - 1
-            ):
+
+            if hasattr(self.net_dict[direction], "_orig_mod"):
+                _orig_mod = self.net_dict[direction]._orig_mod
+            else:
+                _orig_mod = self.net_dict[direction]
+
+            if outer_iter_idx == 0 and inner_opt_step == nb_inner_opt_steps - 1:
                 self.ema_dict[direction].ema_model.load_state_dict(
-                    self.net_dict[direction].state_dict()
+                    _orig_mod.state_dict()
                 )
 
-            self.ema_dict[direction].update(self.net_dict[direction])
+            self.ema_dict[direction].update(_orig_mod)
 
             pbar.set_postfix(loss=loss.item())
             loss_curve.append(loss.item())
             grad_curve.append(total_norm)
 
-        if outer_iter_idx > 0 :
-
+        if outer_iter_idx > 0:
             self.first_pass = False
         self.clear()
         return (
@@ -207,7 +213,7 @@ class IMF_DSBM:
             {"forward": self.net_fwd, "backward": self.net_bwd},
             {"forward": self.net_fwd_ema, "backward": self.net_bwd_ema},
         )
-    
+
     def clear(self):
         self.accelerator.free_memory()
         torch.cuda.empty_cache()
@@ -223,7 +229,7 @@ class IMF_DSBM:
         first_coupling=None,
     ):
         if outer_iter_idx <= self.args.warmup_epoch and self.first_pass:
-            if direction_to_train == "forward" :
+            if direction_to_train == "forward":
                 if first_coupling == "ref":
                     zstart = x_pairs[:, 0]
                     zend = (
@@ -231,19 +237,22 @@ class IMF_DSBM:
                     )  # TODO see if the perturbation need to be of the same std of the stepsize
 
                 elif first_coupling == "ind":
-
                     zstart = x_pairs[:, 0]
                     zend = x_pairs[:, 1].clone()
                     for t_pair in torch.unique(t_pairs, dim=0):
-
-                        indices = (t_pairs == t_pair).all(dim=1).nonzero(as_tuple=True)[0].tolist()
+                        indices = (
+                            (t_pairs == t_pair)
+                            .all(dim=1)
+                            .nonzero(as_tuple=True)[0]
+                            .tolist()
+                        )
                         zend_t_pair = zend[indices]
 
                         permutation = torch.randperm(len(indices))
                         zend_permuted = zend_t_pair[permutation]
 
                         zend[indices] = zend_permuted
-                    
+
                     final_permutation = torch.randperm(zstart.shape[0])
                     zstart = zstart[final_permutation]
                     zend = zend[final_permutation]
@@ -265,15 +274,19 @@ class IMF_DSBM:
                     zstart = x_pairs[:, 1]
                     zend = x_pairs[:, 0].clone()
                     for t_pair in torch.unique(t_pairs, dim=0):
-
-                        indices = (t_pairs == t_pair).all(dim=1).nonzero(as_tuple=True)[0].tolist()
+                        indices = (
+                            (t_pairs == t_pair)
+                            .all(dim=1)
+                            .nonzero(as_tuple=True)[0]
+                            .tolist()
+                        )
                         zend_t_pair = zend[indices]
 
                         permutation = torch.randperm(len(indices))
                         zend_permuted = zend_t_pair[permutation]
 
                         zend[indices] = zend_permuted
-                    
+
                     final_permutation = torch.randperm(zstart.shape[0])
                     zstart = zstart[final_permutation]
                     zend = zend[final_permutation]
@@ -297,8 +310,6 @@ class IMF_DSBM:
 
                 case _:
                     raise ValueError(f"Unknown direction: {direction_to_train}")
-
-
 
             zend = sampler.sample_sde(  # TODO see sample SDE
                 args,
