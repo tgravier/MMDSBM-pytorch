@@ -251,6 +251,26 @@ def load_dataset(
             )
         return TimedDataset(data_pt, time, path, type="large_scale")
 
+    elif name == "mnist_unet":
+        # Récupérer le chemin du fichier .pt directement depuis les paramètres
+        path = params["file_path"]
+
+        if not os.path.exists(path):
+            raise FileNotFoundError(
+                f"Expected file '{path}' for time={time} not found."
+            )
+
+        # Charger le fichier .pt
+        data_pt = torch.load(path)
+
+        if separation_train_test:
+            data_train, data_test = random_split(data_pt, nb_points_test)
+            return (
+                TimedDataset(data_train, time, path),
+                TimedDataset(data_test, time, path),
+            )
+        return TimedDataset(data_pt, time, path, type="large_scale")
+
     else:
         raise ValueError(f"Unknown dataset name: {name}")
 

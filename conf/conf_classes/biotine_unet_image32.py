@@ -19,7 +19,7 @@ class ExperimentConfig:
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES_BIOTINE"
         self.experiment_dir = "experiments_debug"
-        self.experiment_name = "biotine_7d_unet_test"
+        self.experiment_name = "biotine_7d_unet_image32_01"
         self.experiment_type = "latent"
         self.seed = 13
 
@@ -35,13 +35,14 @@ class ExperimentConfig:
         self.distributions = DistributionConfig(dim=self.dim)
 
         # ───── Simulation Parameters
+        self.chunk_size = 10000
         self.first_direction = "backward"
         self.coeff_sigma = 1
         self.first_coupling = "ind"
         self.sigma = 0.3
         self.sigma_mode = "mono"
         self.sigma_linspace = None
-        self.num_simulation_steps = 100
+        self.num_simulation_steps = 600
         self.nb_inner_opt_steps = 100
         self.nb_outer_iterations = 10
         self.eps = 1e-3
@@ -67,8 +68,8 @@ class ExperimentConfig:
 
         # ───── Network: Forward/Backward score model
         self.sample_size = 16
-        self.nb_channels = 4
-        self.nb_channels = 4
+        self.nb_channels = 3
+        self.nb_channels = 3
         self.time_embedding_type = "positional"
         self.down_block_types = (
             "DownBlock2D",
@@ -140,7 +141,7 @@ class DistributionConfig:
     def __init__(self, dim: int, n_samples: int = 2381):
         self.dim = dim
 
-        base_dir = "/projects/static2dynamic/datasets/biotine/SD2_latent_codes"
+        base_dir = "/projects/static2dynamic/datasets/biotine/downscaled_images_32/"
 
         times = list(range(0, 19, 3))
         real_times = list(range(0, 7))

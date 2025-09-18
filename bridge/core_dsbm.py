@@ -125,15 +125,18 @@ class IMF_DSBM:
                 del dl
 
                 self.clear()
-                dataset = TensorDataset(
-                    *self.generate_dataloaders(
-                        args=self.args,
-                        x_pairs=x_pairs,
-                        t_pairs=t_pairs,
-                        direction_to_train=direction,
-                        outer_iter_idx=outer_iter_idx,
-                        first_coupling=self.args.first_coupling,
-                    )
+
+                if self.args.recreate_dataset:
+
+                    dataset = TensorDataset(
+                        *self.generate_dataloaders(
+                            args=self.args,
+                            x_pairs=x_pairs,
+                            t_pairs=t_pairs,
+                            direction_to_train=direction,
+                            outer_iter_idx=outer_iter_idx,
+                            first_coupling=self.args.first_coupling,
+                        )
                 )
                 dl = iter(
                     self.accelerator.prepare(

@@ -211,6 +211,14 @@ class N_Bridges(IMF_DSBM):
 
         all_times = torch.cat(all_times, dim=0)  # ((n_times - 1) * nb_pairs, 2)
 
+        if self.args.max_pairs is not None and len(x_pairs) > self.args.max_pairs:
+            max_pairs = self.args.max_pairs
+            idx = torch.randperm(len(x_pairs))[:max_pairs]
+            x_pairs = x_pairs[idx]
+            all_times = all_times[idx]
+
+    
+
         return x_pairs, all_times
 
     def train(self):

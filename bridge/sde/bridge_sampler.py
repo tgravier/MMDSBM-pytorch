@@ -252,17 +252,23 @@ def sample_sde(
     sigma = args.coeff_sigma * sigma
     sigma = sigma.view(*sigma.shape, *([1] * (z.ndim - sigma.ndim)))
 
-    for i in range(
-        max_nb_steps
-    ):  # TODO: clean the [mask]s # Starting from one to avoid the first nan which add just noise
+    for i in range(max_nb_steps):  # Starting from one to avoid the first nan which add just noise
         mask = ~torch.isnan(ts[:, i])  # mask to filter out NaNs
 
-        t = ts[mask, i].unsqueeze(
-            1
-        )  # shape [batchsize, 1], chaque sample a son propre t
-        pred = score(
-            z[mask], t
-        )  # assume score accepte [batchsize, D] et [batchsize, 1]
+        if mask.sum() == 0:
+            continue
+
+        t = ts[mask, i].unsqueeze(1)  # shape [batchsize, 1], each sample has its own t
+
+        # utility function to forward in smaller chunks
+        def batched_forward(model, z, t, chunk_size: int = args.chunk_size):
+            preds = []
+            for start in range(0, z.shape[0], chunk_size):
+                end = start + chunk_size
+                preds.append(model(z[start:end], t[start:end]))
+            return torch.cat(preds, dim=0)
+
+        pred = batched_forward(score, z[mask], t, chunk_size=args.chunk_size)
 
         if args.sigma_linspace == "linear" and args.sigma_mode == "multi_dim":
             z[mask] = (
@@ -282,18 +288,14 @@ def sample_sde(
             z[mask] = (
                 z[mask]
                 + pred * dt[mask]
-                + sigma[mask, i]
-                * torch.randn_like(z[mask])
-                * torch.sqrt(dt[mask])
+                + sigma[mask, i] * torch.randn_like(z[mask]) * torch.sqrt(dt[mask])
             )
 
         else:
             z[mask] = (
                 z[mask]
                 + pred * dt[mask]
-                + sigma[mask]
-                * torch.randn_like(z[mask])
-                * torch.sqrt(dt[mask])
+                + sigma[mask] * torch.randn_like(z[mask]) * torch.sqrt(dt[mask])
             )
     return z
 

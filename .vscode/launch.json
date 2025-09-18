@@ -9,7 +9,7 @@
             "console": "integratedTerminal",
             "args": [
                 "--config",
-                "biotine_unet"
+                "biotine_unet_image32"
             ]
         },
         {
