@@ -86,7 +86,7 @@ class CircleConfig(DatasetConfig):
         )
 
 class MoonConfig(DatasetConfig):
-    def __init__(self, time, n_samples=1000, noise=0.1):
+    def __init__(self, time, n_samples=1000, noise=0.2):
         self._validate_noise(noise)
         super().__init__(
             "moon", time, input_dim=2,

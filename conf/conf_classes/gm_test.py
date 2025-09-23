@@ -1,5 +1,5 @@
 from accelerate import Accelerator
-from datasets.datasets_registry import GaussianConfig, GaussianMixtureConfig
+from datasets.datasets_registry import GaussianConfig, GaussianMixtureConfig, MoonConfig
 
 
 from accelerate import Accelerator
@@ -14,14 +14,14 @@ class ExperimentConfig:
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES"
         self.experiment_dir = "experiments_debug"
-        self.experiment_name = "test_properties_01"
+        self.experiment_name = "gm_01"
         self.experiment_type = "latent"
         self.seed = 14
 
         # ───── Data Parameters
         self.dim = 2
         self.batch_size = 256
-        self.n_distributions = 3
+        self.n_distributions = 2
         self.separation_train_test = False
         self.nb_points_test = 1000
         self.leave_out_list = []
@@ -31,31 +31,34 @@ class ExperimentConfig:
 
         # ───── Simulation Parameters
 
+
+        self.mode_simul_inf = "ode"
+        self.mode_simul_train = "sde"
         self.first_direction = "backward"
         self.coeff_sigma = 1
         self.first_coupling = "ind"
         self.sigma = 1
         self.sigma_mode = "mono"
         self.sigma_linspace = None
-        self.num_simulation_steps = 600
-        self.nb_inner_opt_steps = 2500
-        self.nb_outer_iterations = 40
+        self.num_simulation_steps = 60
+        self.nb_inner_opt_steps = 20000
+        self.nb_outer_iterations = 20
         self.eps = 1e-3
-        self.loss_scale = True
+        self.loss_scale = False
 
         # ───── EMA Parameters
 
         self.ema = True
-        self.decay_ema = 0.9999
+        self.decay_ema = 0
 
         # Warmup epoch
 
         self.warmup = True
-        self.warmup_nb_inner_opt_steps = 10000
+        self.warmup_nb_inner_opt_steps = 20000
         self.warmup_epoch = 0
         # ───── Optimization
-        self.lr = 2e-4
-        self.grad_clip = 1
+        self.lr = 1e-3
+        self.grad_clip = 10
         self.optimizer_type = "adamw"
         self.optimizer_params = {"betas": (0.9, 0.999), "weight_decay": 0.01}
 
@@ -65,17 +68,17 @@ class ExperimentConfig:
 
         # ───── Network: Forward score model
 
-        self.net_fwd_layers = [256, 256]
-        self.net_fwd_time_dim = 128
+        self.net_fwd_layers = [512, 512]
+        self.net_fwd_time_dim = 256
 
         # ───── Network: Backward score model
-        self.net_bwd_layers = [256, 256]
-        self.net_bwd_time_dim = 128
+        self.net_bwd_layers = [512, 512]
+        self.net_bwd_time_dim = 256
 
         # ----- Inference
 
         self.sigma_inference = self.sigma
-        self.num_sample_metric = 1000
+        self.num_sample_metric = 9000
 
         # ───── Visualisation
         self.fps = 20
@@ -83,7 +86,7 @@ class ExperimentConfig:
         self.plot_vis = True
         self.log_wandb_traj = True
         self.plot_vis_n_epoch = 1
-        self.num_sample_vis = 1024
+        self.num_sample_vis = 10000
         self.plot_traj = False
         self.number_traj = 20
 
@@ -93,9 +96,11 @@ class ExperimentConfig:
 
         self.log_wandb_loss = True
 
-        self.display_swd = False
+        self.display_swd = True
         self.log_wandb_swd = False
         self.display_swd_n_epoch = 1
+        
+        self.param_metric = False
 
         self.display_mmd = False
         self.log_wandb_mmd = False
@@ -103,8 +108,8 @@ class ExperimentConfig:
         self.mmd_kernel = "rbf"  # Options: "gaussian", "laplacian", "energy", "rbf"
         self.mmd_blur = 1.0
 
-        self.display_energy = False
-        self.log_wandb_energy = False
+        self.display_energy = True
+        self.log_wandb_energy = True
         self.display_energy_n_epoch = 1
 
         # ───── Save Networks
@@ -127,31 +132,16 @@ class ExperimentConfig:
 
 
 class DistributionConfig:
-    def __init__(self, dim: int = 2, n_samples: int = 2000):
+    def __init__(self, dim: int = 2, n_samples: int = 10000):
         self.dim = dim  # In Experiment Config
-        self.n_samples = 2000
+        self.n_samples = 10000
 
         self.distributions = [
-            GaussianMixtureConfig(
-                time=0.0,
-                means=[[-3, 4], [-3, 0]],
-                stds=[[0.5, 0.5], [0.5, 0.5]],
-                weights=[0.5, 0.5],
-                n_samples=self.n_samples,
-            ),
-            GaussianMixtureConfig(
-                time=1.0,
-                means=[[3, 4], [3, 0]],
-                stds=[[0.5, 0.5], [0.5, 0.5]],
-                weights=[0.5, 0.5],
-                n_samples=self.n_samples,
-            ),
-            GaussianMixtureConfig(
-                time=2.0,
-                means=[[0, -6], [0, 10]],
-                stds=[[0.5, 0.5], [0.5, 0.5]],
-                weights=[0.5, 0.5],
-                n_samples=self.n_samples,
-            ),
+
+            GaussianConfig(time=0,mean=[0,0],std = [1,1], n_samples = 10000,dim=2),
+            MoonConfig(time=1,n_samples=10000,noise = 0.2),
+
+            
+
 
         ]

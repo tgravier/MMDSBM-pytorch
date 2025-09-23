@@ -260,38 +260,38 @@ def sample_sde(
             z[mask], t
         )  # assume score accepte [batchsize, D] et [batchsize, 1]
 
-        if args.sigma_linspace == "linear" and args.sigma_mode == "multi_dim":
-            z[mask] = (
-                z[mask]
-                + pred * dt[mask]
-                + sigma[mask, i, :] * torch.randn_like(z[mask]) * torch.sqrt(dt[mask])
-            )
+        if args.mode_simul_train == "sde":  # stochastic case
+            if args.sigma_linspace == "linear" and args.sigma_mode == "multi_dim":
+                noise = (
+                    sigma[mask, i, :]
+                    * torch.randn_like(z[mask])
+                    * torch.sqrt(dt[mask])
+                )
+            elif args.sigma_linspace == "final" and args.sigma_mode == "multi_dim":
+                noise = (
+                    sigma[mask, :]
+                    * torch.randn_like(z[mask])
+                    * torch.sqrt(dt[mask])
+                )
+            elif args.sigma_mode == "multi":
+                noise = (
+                    sigma[mask, i].unsqueeze(1)
+                    * torch.randn_like(z[mask])
+                    * torch.sqrt(dt[mask])
+                )
+            else:
+                noise = (
+                    sigma[mask].unsqueeze(1)
+                    * torch.randn_like(z[mask])
+                    * torch.sqrt(dt[mask])
+                )
+        elif args.mode_simul_train == "ode":  # ODE mode: pas de bruit ajouté
+            noise = 0.0
 
-        elif args.sigma_linspace == "final" and args.sigma_mode == "multi_dim":
-            z[mask] = (
-                z[mask]
-                + pred * dt[mask]
-                + sigma[mask, :] * torch.randn_like(z[mask]) * torch.sqrt(dt[mask])
-            )
+        z[mask] = z[mask] + pred * dt[mask] + noise
 
-        elif args.sigma_mode == "multi":
-            z[mask] = (
-                z[mask]
-                + pred * dt[mask]
-                + sigma[mask, i].unsqueeze(1)
-                * torch.randn_like(z[mask])
-                * torch.sqrt(dt[mask])
-            )
-
-        else:
-            z[mask] = (
-                z[mask]
-                + pred * dt[mask]
-                + sigma[mask].unsqueeze(1)
-                * torch.randn_like(z[mask])
-                * torch.sqrt(dt[mask])
-            )
     return z
+
         
 
 
@@ -398,16 +398,46 @@ def inference_sample_sde(
     t_list = [ts[0]]
 
     batchsize = z.shape[0]
-
+    norm_drift = []
+    energy_accum = torch.zeros(batchsize, device=device)  # energy per trajectory
     for i in range(len(ts)):
         t = torch.full((batchsize, 1), float(ts[i]), device=device)
 
         t_list.append(ts[i] + dt_step * sign)
 
-        pred = score(z, t)
+        pred = score(z, t)   # score network output
 
-        z = z + pred * dt[i] + sigma[i] * torch.randn_like(z) * torch.sqrt(dt[i])
+        if args.mode_simul_inf == "sde":
+            # ----- SDE update -----
+            drift = pred
+            z = z + drift * dt[i] + sigma[i] * torch.randn_like(z) * torch.sqrt(dt[i])
 
+        elif args.mode_simul_inf == "ode":
+            # ----- Probability Flow ODE update -----
+
+            if args.mode_simul_train == "sde":
+
+                
+                drift_forward  = net_dict["forward"](z, t)
+                drift_backward = net_dict["backward"](z, t)
+
+                drift = 0.5 * (drift_forward - drift_backward)
+            elif args.mode_simul_train == "ode":
+
+
+                drift = pred
+            z = z + drift * dt[i]
+
+        else:
+            raise ValueError(f"Unknown mode_simul: {args.mode_simul}")
+
+        # Energy accumulation (same formula, depends on chosen drift)
+        drift_norm_sq = (drift ** 2).sum(dim=1)   # sum over state dimensions
+        energy_accum += drift_norm_sq * dt[i]    # Riemann sum
         traj.append(z.detach().clone())
 
-    return traj, t_list
+    energy_mean = energy_accum.mean().item()
+
+    return traj, t_list, energy_mean
+
+

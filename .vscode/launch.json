@@ -9,7 +9,7 @@
             "console": "integratedTerminal",
             "args": [
                 "--config",
-                "biotine"
+                "gmgm"
             ]
         },
         {

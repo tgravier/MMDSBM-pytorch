@@ -126,6 +126,7 @@ def load_dataset(
 
     elif name == "moon":
         X, _ = make_moons(n_samples=n, noise=params.get("noise", 0.1))
+        X = X*3 - 1
         if separation_train_test:
             data_train, data_test = random_split(
                 torch.tensor(X, dtype=torch.float32), nb_points_test

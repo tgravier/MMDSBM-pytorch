@@ -189,12 +189,12 @@ def evaluate_wd_over_time(
         a = b = ot.unif(n)
 
         # Cost matrix (squared Euclidean distance)
-        M = ot.dist(x, y, metric="euclidean") ** 2
+        M = ot.dist(x, y, metric="sqeuclidean") 
 
         # Solve OT problem (returns the WD²)
-        wd2 = ot.emd2(a, b, M)
+        wd2 = ot.emd2(a, b, M, numItermax=10**7)
 
-        wd_scores.append((ref_time, wd2**0.5))  # Return sqrt for actual WD
+        wd_scores.append((ref_time, wd2))  
 
     return wd_scores
 
@@ -263,3 +263,65 @@ def evaluate_mmd_over_time(
         mmd_scores.append((ref_time, mmd2))
 
     return mmd_scores
+
+
+def evaluate_bridge_stats(
+    generated: List[torch.Tensor],
+    time: List[float],
+    datasets_inference: List,
+    direction_tosample: str,
+) -> List[Tuple[float, float, float, float]]:
+    """
+    Evaluate statistics of generated samples at reference times:
+    - Mean of X_t
+    - Variance of X_t
+    - Covariance between (X_t, X_{t+1}) (average diagonal)
+
+    Args:
+        generated (List[Tensor]): List of generated samples at different times [(N, D) tensors].
+        time (List[float]): List of times corresponding to `generated`.
+        datasets_inference (List[TimedDataset]): Reference datasets (only used for time alignment).
+        direction_tosample (str): "forward" or "backward".
+
+    Returns:
+        List[Tuple[float, float, float, float]]:
+        (ref_time, mean(X_t), var(X_t), cov(X_t, X_{t+1})).
+    """
+    assert direction_tosample in ["forward", "backward"]
+
+    # Sort datasets by time depending on sampling direction
+    sorted_datasets = sorted(
+        datasets_inference,
+        key=lambda d: d.get_time(),
+        reverse=(direction_tosample == "backward"),
+    )
+
+    time_tensor = torch.tensor(time)
+    stats = []
+
+    for i, dataset in enumerate(sorted_datasets[:-1]):  # stop at T-1
+        ref_time = dataset.get_time()
+
+        # Find closest generated time for X_t
+        idx_t = int(torch.argmin(torch.abs(time_tensor - ref_time)).item())
+        xt = generated[idx_t]  # (N, D)
+
+        # Find closest generated time for X_{t+1}
+        ref_time_next = sorted_datasets[i + 1].get_time()
+        idx_t1 = int(torch.argmin(torch.abs(time_tensor - ref_time_next)).item())
+        xt1 = generated[idx_t1]  # (N, D)
+
+        # --- Mean of X_t ---
+        mean_xt = xt.mean(dim=0).mean().item()
+
+        # --- Variance of X_t ---
+        var_xt = xt.var(dim=0, unbiased=True).mean().item()
+
+        # --- Covariance between X_t and X_{t+1} ---
+        joint = torch.cat([xt, xt1], dim=1)  # (N, 2D)
+        cov_matrix = torch.cov(joint.T)      # (2D, 2D)
+        cov_diag = cov_matrix[xt.shape[1]:, :xt.shape[1]].diag().mean().item()
+
+        stats.append((ref_time, mean_xt, var_xt, cov_diag))
+
+    return stats

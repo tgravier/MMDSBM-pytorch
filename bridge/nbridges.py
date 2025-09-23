@@ -21,6 +21,7 @@ from utils.metrics import (
     evaluate_energy_over_time,
     evaluate_wd_over_time,
     evaluate_mmd_over_time,
+    evaluate_bridge_stats
 )
 
 
@@ -231,15 +232,16 @@ class N_Bridges(IMF_DSBM):
                 t_pairs=t_pairs,
                 outer_iter_idx=outer_iter_idx,
             )
+            if self.args.mode_simul_inf == "sde" or direction_to_train == "forward":
 
-            self.orchestrate_experiment(
-                args=self.args,
-                outer_iter_idx=outer_iter_idx,
-                direction_to_train=direction_to_train,
-                net_dict=ema_dict,  # TODO create an intermediary pointer if ema_dict is false : like net_inference -> ema_dict or net_dict
-                loss_curve=loss_curve,
-                grad_curve=grad_curve,
-            )
+                self.orchestrate_experiment(
+                    args=self.args,
+                    outer_iter_idx=outer_iter_idx,
+                    direction_to_train=direction_to_train,
+                    net_dict=ema_dict,  # TODO create an intermediary pointer if ema_dict is false : like net_inference -> ema_dict or net_dict
+                    loss_curve=loss_curve,
+                    grad_curve=grad_curve,
+                )
 
             if direction_to_train == "backward":
                 direction_to_train = "forward"
@@ -256,14 +258,17 @@ class N_Bridges(IMF_DSBM):
                 outer_iter_idx=outer_iter_idx,
             )
 
-            self.orchestrate_experiment(
-                args=self.args,
-                outer_iter_idx=outer_iter_idx,
-                direction_to_train=direction_to_train,
-                net_dict=ema_dict,
-                loss_curve=loss_curve,
-                grad_curve=grad_curve,
-            )
+            if self.args.mode_simul_inf == "sde" or direction_to_train == "forward":
+
+
+                self.orchestrate_experiment(
+                    args=self.args,
+                    outer_iter_idx=outer_iter_idx,
+                    direction_to_train=direction_to_train,
+                    net_dict=ema_dict,
+                    loss_curve=loss_curve,
+                    grad_curve=grad_curve,
+                )
 
             if direction_to_train == "backward":
                 direction_to_train = "forward"
@@ -311,7 +316,7 @@ class N_Bridges(IMF_DSBM):
             device=device,
         )
 
-        generated, time = inference_sample_sde(
+        generated, time, energy_mean = inference_sample_sde(
             args=args,
             zstart=z0_sampled,
             net_dict=net_dict,
@@ -342,9 +347,9 @@ class N_Bridges(IMF_DSBM):
                 )
                 generated_rescale.append(inversed_data)
 
-            return generated, generated_rescale, time
+            return generated, generated_rescale, time, energy_mean
 
-        return generated, time
+        return generated, time, energy_mean
 
     def save_test_datasets(self):
         """
@@ -525,11 +530,13 @@ class N_Bridges(IMF_DSBM):
             args.save_generation
         )
 
+        do_param_metrics = (args.param_metric)
+
         # ───── Only run inference if needed
-        if do_plot or do_swd or do_mmd or do_energy or do_save_geneneration:
+        if do_plot or do_swd or do_mmd or do_energy or do_save_geneneration or do_param_metrics:
             datasets_for_generation = self.leave_out_datasets(datasets_inference)
             if args.rescale:
-                generated, generated_rescale, time = self.inference_test(
+                generated, generated_rescale, time, energy_mean = self.inference_test(
                     args=args,
                     direction_tosample=direction_to_train,
                     net_dict=net_dict,
@@ -541,7 +548,7 @@ class N_Bridges(IMF_DSBM):
                     rescale=args.rescale,
                 )
             else:
-                generated, time = self.inference_test(
+                generated, time, energy_mean = self.inference_test(
                     args=args,
                     direction_tosample=direction_to_train,
                     net_dict=net_dict,
@@ -611,6 +618,37 @@ class N_Bridges(IMF_DSBM):
                     },
                     step=outer_iter_idx,
                 )
+            if args.dim <= 2:
+                    
+                wd_scores = evaluate_wd_over_time(
+                    generated=generated,
+                    time=time,
+                    datasets_inference=datasets_inference,
+                    direction_tosample=direction_to_train,
+                )
+                for t, wd in wd_scores:
+                    print(f"WD @ t={t:.2f}] = {wd:.4f}")
+                    if args.log_wandb_swd:
+                        self.tracking_logger.log(
+                            {
+                                f"wd/{direction_to_train}/t={t:.2f}": wd,
+                                "epoch": outer_iter_idx,
+                            },
+                            step=outer_iter_idx,
+                        )
+
+                # Remove the first element and compute the mean over the second dimension
+                if len(wd_scores) > 1:
+                    wd_values = [wd for _, wd in wd_scores[1:]]
+                    wd_mean = float(np.mean(wd_values))
+                    print(f"[WD MEAN] = {wd_mean:.4f}")
+                    self.tracking_logger.log(
+                        {
+                            f"wd_mean/{direction_to_train}/epoch": wd_mean,
+                            "epoch": outer_iter_idx,
+                        },
+                        step=outer_iter_idx,
+                    )
             if args.rescale:
                 swd_scores = evaluate_swd_over_time(
                     generated=generated_rescale,
@@ -664,21 +702,48 @@ class N_Bridges(IMF_DSBM):
                     )
 
         # ───── Energy
-        if do_energy and generated is not None:
-            energy_scores = evaluate_energy_over_time(
+        if do_energy:
+
+
+            print(f"[ENERGY MEAN] = {energy_mean:.4f}")
+            if args.log_wandb_energy:
+                self.tracking_logger.log(
+                    {
+                        f"energy_mean/{direction_to_train}/epoch": energy_mean,
+                        "epoch": outer_iter_idx,
+                    },
+                    step=outer_iter_idx,
+                )
+
+
+        # ───── Parameter-based metrics (mean, var, cov of generated samples)
+        if do_param_metrics and generated is not None:
+            stats_scores = evaluate_bridge_stats(
                 generated=generated,
                 time=time,
+                datasets_inference=datasets_inference,
+                direction_tosample=direction_to_train,
             )
-            for t, energy in energy_scores:
-                print(f"[ENERGY @ t={t:.2f}] = {energy:.4f}")
-                if args.log_wandb_energy:
+            for t, mean_xt, var_xt, cov_xt_xt1 in stats_scores:
+                print(
+                    f"[PARAM METRICS @ t={t:.2f}] "
+                    f"mean(X_t)={mean_xt:.4f}, "
+                    f"var(X_t)={var_xt:.4f}, "
+                    f"cov(X_t,X_t+1)={cov_xt_xt1:.4f}"
+                )
+                if args.log_wandb_params:
                     self.tracking_logger.log(
                         {
-                            f"energy/{direction_to_train}/t={t:.2f}": energy,
+                            f"params/{direction_to_train}/mean/t={t:.2f}": mean_xt,
+                            f"params/{direction_to_train}/var/t={t:.2f}": var_xt,
+                            f"params/{direction_to_train}/cov/t={t:.2f}": cov_xt_xt1,
                             "epoch": outer_iter_idx,
                         },
                         step=outer_iter_idx,
                     )
+
+
+
         if do_save_geneneration:
             self.save_generation(generated, direction_to_train, outer_iter_idx)
 

@@ -59,13 +59,23 @@ def make_trajectory(
 
     device = next(net_dict[direction_tosample].parameters()).device
 
-    max_time_idx = max(range(len(dataset_train)), key=lambda i: float(dataset_train[i].get_time()))
-    min_time_idx = min(range(len(dataset_train)), key=lambda i: float(dataset_train[i].get_time()))
+    max_time_idx = max(
+        range(len(dataset_train)), key=lambda i: float(dataset_train[i].get_time())
+    )
+    min_time_idx = min(
+        range(len(dataset_train)), key=lambda i: float(dataset_train[i].get_time())
+    )
 
-    if direction_tosample == 'forward':
-        t_pairs = [dataset_train[min_time_idx].get_time(), dataset_train[max_time_idx].get_time()]
-    elif direction_tosample == 'backward':
-        t_pairs = [dataset_train[max_time_idx].get_time(), dataset_train[min_time_idx].get_time()]
+    if direction_tosample == "forward":
+        t_pairs = [
+            dataset_train[min_time_idx].get_time(),
+            dataset_train[max_time_idx].get_time(),
+        ]
+    elif direction_tosample == "backward":
+        t_pairs = [
+            dataset_train[max_time_idx].get_time(),
+            dataset_train[min_time_idx].get_time(),
+        ]
 
     # On garde la version complète pour le score
     generated_full = [g.cpu().numpy() for g in generated]
@@ -78,7 +88,9 @@ def make_trajectory(
 
     if plot_traj:
         n_sample = generated_vis[0].shape[0]
-        idx_traj = np.random.choice(n_sample, size=min(number_traj, n_sample), replace=False)
+        idx_traj = np.random.choice(
+            n_sample, size=min(number_traj, n_sample), replace=False
+        )
 
     # === Chargement des datasets pour affichage
     cmap = cm.get_cmap("tab10", len(dataset_train))
@@ -115,7 +127,7 @@ def make_trajectory(
 
     score_model = net_dict[direction_tosample].eval()
 
-    fig, ax = plt.subplots(figsize=(6, 6))
+    fig, ax = plt.subplots(figsize=(4, 4))
     norm_image = ax.imshow(
         np.zeros((resolution, resolution)),
         extent=[x_min, x_max, y_min, y_max],
@@ -133,21 +145,20 @@ def make_trajectory(
         angles="xy",
         scale_units="xy",
         scale=1,
-        width=0.003,
+        width=0.008,
     )
 
     for ti, data, color in distrib_data:
-        ax.scatter(data[:, 0], data[:, 1], s=30, alpha=0.3, color=color, label=f"t={ti:.2f}")
+        ax.scatter(data[:, 0], data[:, 1], s=30, alpha=0.3, color=color)
 
-    gen_scat = ax.scatter([], [], s=5, color="green", label="Generated")
+    gen_scat = ax.scatter([], [], s=5, color="green")
 
     if plot_traj:
-        traj_lines = [ax.plot([], [], lw=1.5, color='blue')[0] for _ in idx_traj]
+        traj_lines = [ax.plot([], [], lw=1.5, color="blue")[0] for _ in idx_traj]
 
     ax.set_xlim(x_min, x_max)
     ax.set_ylim(y_min, y_max)
-    ax.legend(loc="upper right", fontsize=6)
-    ax.grid(True)
+    ax.axis("off")
 
     if len(time) < 2:
         raise ValueError("Not enough time steps to compute dt.")
@@ -191,7 +202,6 @@ def make_trajectory(
                     traj_y = [generated_vis[j][sample_idx, 1] for j in range(i + 1)]
                     traj_lines[line_idx].set_data(traj_x, traj_y)
 
-            ax.set_title(f"Bridge Evolution — Epoch {outer_iter_idx} — t = {time[i]:.3f}")
             writer.grab_frame()
 
     plt.close(fig)
