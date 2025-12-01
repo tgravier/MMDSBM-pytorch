@@ -104,6 +104,7 @@ class N_Bridges(IMF_DSBM):
         datasets_train_filtered = []
         for ds in time_datasets_list:
             if ds.get_time() in self.args.leave_out_list:
+                print(f"Leaving out dataset at time {ds.get_time()}")
                 self.args.leave_out_list.append(ds)
             else:
                 datasets_train_filtered.append(ds)
