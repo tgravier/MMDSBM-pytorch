@@ -10,7 +10,7 @@ from sklearn.datasets import make_s_curve
 # ============================
 
 ARTIFICIAL_DATASETS = ["gaussian", "spiral", "moon", "circle", "gaussian_mixture", "s_curve",]
-REAL_DATASETS = ["mnist", "cifar10","phate_traj_dim2", "biotine_latent","biotine_latent_flatten","mnist_unet","biotine"]
+REAL_DATASETS = ["mnist", "cifar10","phate_traj_dim2", "biotine_latent","biotine_latent_flatten","mnist_unet","biotine","multi"]
 
 class DatasetConfig:
     def __init__(self, name: str, time: float, input_dim: Optional[int] = None, **params):
@@ -229,4 +229,23 @@ class MNISTUnetConfig(DatasetConfig):
             time=time,
             input_dim=dim,
             file_path=path_to_use
+        )
+
+
+class MultiConfig(DatasetConfig):
+    def __init__(self, time: float, dim: int, file_path: str):
+        """
+        Configuration for the MULTI dataset (Kaggle Open Problems Multimodal).
+        Preprocessed following TrajectoryNet pipeline: log1p + z-score + PCA.
+
+        Args:
+            time (float): Time point associated with this snapshot.
+            dim (int): PCA dimension (e.g., 5 or 100).
+            file_path (str): Path to the .npz file containing 'pcs' array.
+        """
+        super().__init__(
+            name="multi",
+            time=time,
+            input_dim=dim,
+            file_path=file_path
         )

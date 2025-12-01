@@ -271,6 +271,29 @@ def load_dataset(
             )
         return TimedDataset(data_pt, time, path, type="large_scale")
 
+    elif name == "multi":
+        # MULTI dataset (Kaggle Open Problems Multimodal) - preprocessed via TrajectoryNet pipeline
+        path = params["file_path"]
+        if not os.path.exists(path):
+            raise FileNotFoundError(
+                f"Expected file '{path}' for time={time} not found."
+            )
+        data_npz = np.load(path)
+        if "pcs" not in data_npz:
+            raise ValueError(f"File '{path}' must contain key 'pcs'.")
+        pcs = data_npz["pcs"]
+        pcs = pcs[:, :dim]
+
+        if separation_train_test:
+            data_train, data_test = random_split(
+                torch.tensor(pcs, dtype=torch.float32), nb_points_test
+            )
+            return (
+                TimedDataset(data_train, time, path),
+                TimedDataset(data_test, time, path),
+            )
+        return TimedDataset(torch.tensor(pcs, dtype=torch.float32), time, path)
+
     else:
         raise ValueError(f"Unknown dataset name: {name}")
 

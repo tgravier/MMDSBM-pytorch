@@ -5,7 +5,11 @@ import os
 import numpy as np
 from bridge.runners.train_runner import trainer_bridges
 from conf.conf_loader import load_test_datasets
-from utils.metrics import evaluate_swd_over_time, evaluate_mmd_over_time
+from utils.metrics import (
+    evaluate_swd_over_time,
+    evaluate_mmd_over_time,
+    evaluate_w1_over_time,
+)
 
 
 def inference_bridges(
@@ -120,8 +124,10 @@ def inference_bridges(
 
     swd_scores = []
     mmd_scores = []
+    w1_scores = []
     swd_scores_rescale = []
     mmd_scores_rescale = []
+    w1_scores_rescale = []
 
     logger.info(
         f"Running {n_runs} inference run(s) to compute metrics with uncertainty..."
@@ -208,6 +214,19 @@ def inference_bridges(
                     logger.info(f"Run {run_idx + 1} - MMD @ t={t:.2f}: {mmd:.6f}")
             except Exception as e:
                 logger.warning(f"Failed to compute MMD for run {run_idx + 1}: {e}")
+
+            # Compute W1 if enabled (used for MULTI benchmark)
+            if getattr(config_classes, "compute_w1", False):
+                w1_results = evaluate_w1_over_time(
+                    generated=generated,
+                    time=time,
+                    datasets_inference=datasets_for_inference,
+                    direction_tosample="forward",
+                )
+                run_w1_values = [w1 for t, w1 in w1_results]
+                w1_scores.append(run_w1_values)
+                for t, w1 in w1_results:
+                    logger.info(f"Run {run_idx + 1} - W1 @ t={t:.2f}: {w1:.6f}")
 
             # Compute metrics for generated_rescale si dispo
             if rescale and generated_rescale is not None:
@@ -346,6 +365,31 @@ def inference_bridges(
         ):
             logger.info(f"MMD RESCALE @ t={t:.2f}: {mean_mmd:.6f} ± {std_mmd:.6f}")
             print(f"MMD RESCALE @ t={t:.2f}: {mean_mmd:.6f} ± {std_mmd:.6f}")
+
+    # W1 Results (for MULTI benchmark)
+    w1_overall_mean = 0.0
+    w1_overall_std = 0.0
+    w1_means_per_time = []
+    w1_stds_per_time = []
+    if w1_scores:
+        w1_array = np.array(w1_scores)
+        w1_means_per_time = np.mean(w1_array, axis=0)
+        w1_stds_per_time = (
+            np.std(w1_array, axis=0)
+            if len(w1_scores) > 1
+            else np.zeros_like(w1_means_per_time)
+        )
+        w1_overall_mean = np.mean(w1_array)
+        w1_overall_std = np.std(w1_array) if len(w1_scores) > 1 else 0.0
+        logger.info("=== W1 Results ===")
+        logger.info(f"Overall W1: {w1_overall_mean:.6f} ± {w1_overall_std:.6f}")
+        print(f"Overall W1: {w1_overall_mean:.6f} ± {w1_overall_std:.6f}")
+        time_values = [ds.get_time() for ds in datasets_for_inference]
+        for i, (t, mean_w1, std_w1) in enumerate(
+            zip(time_values, w1_means_per_time, w1_stds_per_time)
+        ):
+            logger.info(f"W1 @ t={t:.2f}: {mean_w1:.6f} ± {std_w1:.6f}")
+            print(f"W1 @ t={t:.2f}: {mean_w1:.6f} ± {std_w1:.6f}")
 
     # Log to wandb if available
     if tracking_logger and swd_scores:

@@ -21,6 +21,8 @@ from utils.metrics import (
     evaluate_energy_over_time,
     evaluate_wd_over_time,
     evaluate_mmd_over_time,
+    evaluate_w1_over_time,
+    evaluate_w1_consecutive,
 )
 
 
@@ -201,12 +203,12 @@ class N_Bridges(IMF_DSBM):
 
         x_pairs = torch.stack([all_left_of_pairs, all_right_of_pairs], dim=1)
         # (n_times - 1, nb_pairs, 2, data_dim)
-        
-        assert x0[0].ndim in (2, 4), f"Expected x0[0] to have 2 or 4 dimensions, but got {x0[0].ndim}"
-        data_dim = x0[0].size()[1:]
-        x_pairs = x_pairs.reshape(
-            -1, 2, *data_dim
+
+        assert x0[0].ndim in (2, 4), (
+            f"Expected x0[0] to have 2 or 4 dimensions, but got {x0[0].ndim}"
         )
+        data_dim = x0[0].size()[1:]
+        x_pairs = x_pairs.reshape(-1, 2, *data_dim)
         # ((n_times - 1) * nb_pairs, 2, data_dim)
 
         all_times = torch.cat(all_times, dim=0)  # ((n_times - 1) * nb_pairs, 2)
@@ -216,8 +218,6 @@ class N_Bridges(IMF_DSBM):
             idx = torch.randperm(len(x_pairs))[:max_pairs]
             x_pairs = x_pairs[idx]
             all_times = all_times[idx]
-
-    
 
         return x_pairs, all_times
 
@@ -239,6 +239,7 @@ class N_Bridges(IMF_DSBM):
                 x_pairs=x_pairs,
                 t_pairs=t_pairs,
                 outer_iter_idx=outer_iter_idx,
+                logger=self.tracking_logger,
             )
 
             self.orchestrate_experiment(
@@ -263,6 +264,7 @@ class N_Bridges(IMF_DSBM):
                 x_pairs=x_pairs,
                 t_pairs=t_pairs,
                 outer_iter_idx=outer_iter_idx,
+                logger=self.tracking_logger,
             )
 
             self.orchestrate_experiment(
@@ -304,10 +306,12 @@ class N_Bridges(IMF_DSBM):
         if args.experiment_type == "latent":
             generator = torch.Generator(device=device)
             generator.manual_seed(args.seed)  # Seed fixe pour reproductibilité
-            idx = torch.randint(0, z0.shape[0], (num_samples,), generator=generator, device=device)
+            idx = torch.randint(
+                0, z0.shape[0], (num_samples,), generator=generator, device=device
+            )
         else:
             idx = torch.randint(0, z0.shape[0], (num_samples,))
-            
+
         z0_sampled = z0[idx]
 
         # Build t_pairs as tensor of shape (n_bridge, 2)
@@ -516,7 +520,6 @@ class N_Bridges(IMF_DSBM):
                 else None,
                 "epoch": outer_iter_idx,
             },
-            step=outer_iter_idx,
         )
 
         # ───── Determine what should be executed this iteration
@@ -530,9 +533,7 @@ class N_Bridges(IMF_DSBM):
             args.save_networks and outer_iter_idx % args.save_networks_n_epoch == 0
         )
 
-        do_save_geneneration = (
-            args.save_generation
-        )
+        do_save_geneneration = args.save_generation
 
         # ───── Only run inference if needed
         if do_plot or do_swd or do_mmd or do_energy or do_save_geneneration:
@@ -582,11 +583,11 @@ class N_Bridges(IMF_DSBM):
             if getattr(args, "log_wandb_traj", False):
                 self.tracking_logger.log(
                     {
-                        f"video/{direction_to_train}/epoch_{outer_iter_idx:04d}": wandb.Video(
+                        f"video/{direction_to_train}": wandb.Video(
                             save_path_trajectory, fps=args.fps, format="mp4"
-                        )
+                        ),
+                        "epoch": outer_iter_idx,
                     },
-                    step=outer_iter_idx,
                 )
 
         # ───── SWD and WD
@@ -605,7 +606,6 @@ class N_Bridges(IMF_DSBM):
                             f"swd/{direction_to_train}/t={t:.2f}": swd,
                             "epoch": outer_iter_idx,
                         },
-                        step=outer_iter_idx,
                     )
 
             # Remove the first element and compute the mean over the second dimension
@@ -615,10 +615,9 @@ class N_Bridges(IMF_DSBM):
                 print(f"[SWD MEAN] = {swd_mean:.4f}")
                 self.tracking_logger.log(
                     {
-                        f"swd_mean/{direction_to_train}/epoch": swd_mean,
+                        f"swd_mean/{direction_to_train}": swd_mean,
                         "epoch": outer_iter_idx,
                     },
-                    step=outer_iter_idx,
                 )
             if args.rescale:
                 swd_scores = evaluate_swd_over_time(
@@ -636,7 +635,6 @@ class N_Bridges(IMF_DSBM):
                                 f"swd_rescale/{direction_to_train}/t={t:.2f}": swd,
                                 "epoch": outer_iter_idx,
                             },
-                            step=outer_iter_idx,
                         )
 
                 # Remove the first element and compute the mean over the second dimension
@@ -646,10 +644,9 @@ class N_Bridges(IMF_DSBM):
                     print(f"[SWD RESCALE MEAN] = {swd_mean:.4f}")
                     self.tracking_logger.log(
                         {
-                            f"swd_rescale_mean/{direction_to_train}/epoch": swd_mean,
+                            f"swd_rescale_mean/{direction_to_train}": swd_mean,
                             "epoch": outer_iter_idx,
                         },
-                        step=outer_iter_idx,
                     )
 
         # ───── MMD
@@ -669,8 +666,77 @@ class N_Bridges(IMF_DSBM):
                             f"mmd/{direction_to_train}/t={t:.2f}": mmd,
                             "epoch": outer_iter_idx,
                         },
-                        step=outer_iter_idx,
                     )
+
+            # Compute and log MMD mean (excluding first time point)
+            if len(mmd_scores) > 1:
+                mmd_values = [mmd for _, mmd in mmd_scores[1:]]
+                mmd_mean = float(np.mean(mmd_values))
+                print(f"[MMD MEAN] = {mmd_mean:.4f}")
+                if args.log_wandb_mmd:
+                    self.tracking_logger.log(
+                        {
+                            f"mmd_mean/{direction_to_train}": mmd_mean,
+                            "epoch": outer_iter_idx,
+                        },
+                    )
+
+        # ───── W1 (Wasserstein-1)
+        if getattr(args, "compute_w1", False) and generated is not None:
+            w1_scores = evaluate_w1_over_time(
+                generated=generated,
+                time=time,
+                datasets_inference=datasets_inference,
+                direction_tosample=direction_to_train,
+            )
+            for t, w1 in w1_scores:
+                print(f"[W1 @ t={t:.2f}] = {w1:.4f}")
+                self.tracking_logger.log(
+                    {
+                        f"w1/{direction_to_train}/t={t:.2f}": w1,
+                        "epoch": outer_iter_idx,
+                    },
+                )
+
+            # Compute and log W1 mean (excluding first time point)
+            if len(w1_scores) > 1:
+                w1_values = [w1 for _, w1 in w1_scores[1:]]
+                w1_mean = float(np.mean(w1_values))
+                print(f"[W1 MEAN] = {w1_mean:.4f}")
+                self.tracking_logger.log(
+                    {
+                        f"w1_mean/{direction_to_train}": w1_mean,
+                        "epoch": outer_iter_idx,
+                    },
+                )
+
+            # ───── W1 consecutive: compare p_gen(t) with p_test(t-1)
+            w1_prev_scores = evaluate_w1_consecutive(
+                generated=generated,
+                time=time,
+                datasets_inference=datasets_inference,
+                direction_tosample=direction_to_train,
+            )
+            for t, w1_prev in w1_prev_scores:
+                print(f"[W1_PREV @ t={t:.2f}] = {w1_prev:.4f}")
+                self.tracking_logger.log(
+                    {
+                        f"w1_prev/{direction_to_train}/t={t:.2f}": w1_prev,
+                        "epoch": outer_iter_idx,
+                    },
+                )
+
+            # Compute and log W1 prev mean
+            if len(w1_prev_scores) > 0:
+                w1_prev_values = [w1 for _, w1 in w1_prev_scores]
+                w1_prev_mean = float(np.mean(w1_prev_values))
+                print(f"[W1_PREV MEAN] = {w1_prev_mean:.4f}")
+                self.tracking_logger.log(
+                    {
+                        f"w1_prev_mean/{direction_to_train}": w1_prev_mean,
+                        "epoch": outer_iter_idx,
+                    },
+                )
 
         # ───── Energy
         if do_energy and generated is not None:
@@ -686,7 +752,6 @@ class N_Bridges(IMF_DSBM):
                             f"energy/{direction_to_train}/t={t:.2f}": energy,
                             "epoch": outer_iter_idx,
                         },
-                        step=outer_iter_idx,
                     )
         if do_save_geneneration:
             self.save_generation(generated, direction_to_train, outer_iter_idx)

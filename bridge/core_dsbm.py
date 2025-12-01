@@ -1,17 +1,18 @@
 # bridge/trainer_dsbm.py
 
-import torch
-from torch import Tensor
 from typing import Tuple
+
+import matplotlib.pyplot as plt
+import torch
+import torch.nn as nn
 import torch.nn.functional as F
+from torch import Tensor
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
-import torch.nn as nn
-import matplotlib.pyplot as plt
-
 
 import bridge.sde.bridge_sampler as sampler
 
+from utils.tracking_logger import WandbLogger
 
 """ In this file we implement the main class for the training of 1 bridges, it represent the inner and outer
     iteration of Algorithm 1 of Shi &  Al 2023
@@ -73,8 +74,17 @@ class IMF_DSBM:
         self.ema_dict["forward"].to(self.device)
         self.ema_dict["backward"].to(self.device)
 
+        # Per-direction step counters for training loss/grad logging
+        self.fw_step_counter = 0
+        self.bw_step_counter = 0
+
     def train_one_direction(
-        self, x_pairs, t_pairs: Tensor, direction: str, outer_iter_idx: int
+        self,
+        x_pairs,
+        t_pairs: Tensor,
+        direction: str,
+        outer_iter_idx: int,
+        logger: WandbLogger,
     ):
         # x_pairs shape (num_distrib, num_samples, time, dim)
 
@@ -127,7 +137,6 @@ class IMF_DSBM:
                 self.clear()
 
                 if self.args.recreate_dataset:
-
                     dataset = TensorDataset(
                         *self.generate_dataloaders(
                             args=self.args,
@@ -137,7 +146,7 @@ class IMF_DSBM:
                             outer_iter_idx=outer_iter_idx,
                             first_coupling=self.args.first_coupling,
                         )
-                )
+                    )
                 dl = iter(
                     self.accelerator.prepare(
                         DataLoader(
@@ -169,7 +178,6 @@ class IMF_DSBM:
                 loss_scale = 1
 
             # 3. get net prediction
-
             pred = self.net_dict[direction](x_bridge_t, t)
 
             # 4. compute loss, backward, and optim step
@@ -185,6 +193,27 @@ class IMF_DSBM:
                     param_norm = p.grad.data.norm(2)
                     total_norm += param_norm.item() ** 2
             total_norm = total_norm**0.5  # Final L2 norm of all gradients
+
+            # Log training metrics per step
+            # Include direction-specific step counter for proper x-axis in wandb
+            if direction == "forward":
+                self.fw_step_counter += 1
+                logger.log(
+                    {
+                        f"training/loss/{direction}": loss.item(),
+                        f"training/grad/{direction}": total_norm,
+                        "fw_step": self.fw_step_counter,
+                    }
+                )
+            else:
+                self.bw_step_counter += 1
+                logger.log(
+                    {
+                        f"training/loss/{direction}": loss.item(),
+                        f"training/grad/{direction}": total_norm,
+                        "bw_step": self.bw_step_counter,
+                    }
+                )
 
             self.accelerator.clip_grad_norm_(
                 self.net_dict[direction].parameters(), self.args.grad_clip
@@ -211,8 +240,8 @@ class IMF_DSBM:
             self.first_pass = False
         self.clear()
         return (
-            loss_curve,
-            grad_curve,
+            None,
+            None,
             {"forward": self.net_fwd, "backward": self.net_bwd},
             {"forward": self.net_fwd_ema, "backward": self.net_bwd_ema},
         )

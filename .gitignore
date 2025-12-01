@@ -11,3 +11,4 @@ DSBM-Gaussian.py
 notebooks/
 
 datasets/data/mnist
+*.code-workspace
