@@ -10,7 +10,7 @@ class ExperimentConfig:
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES_MULTI"
         self.experiment_dir = "experiments"
-        self.experiment_name = "multi_dim100_sigma0.1"
+        self.experiment_name = "multi_dim100_sigma0.1_loo2"
         self.experiment_type = ""
 
         # ───── Data Parameters
@@ -21,7 +21,7 @@ class ExperimentConfig:
         self.nb_points_test = 1000
         self.recreate_dataset = False
         self.max_pairs = 100_000
-        self.leave_out_list = []
+        self.leave_out_list = [2]
 
         # ───── Dataset Configuration
         self.distributions = DistributionConfig(dim=self.dim)
@@ -36,7 +36,7 @@ class ExperimentConfig:
         self.sigma_linspace = None
         self.num_simulation_steps = 150
         self.nb_inner_opt_steps = 10_000
-        self.nb_outer_iterations = 50
+        self.nb_outer_iterations = 100
         self.eps = 1e-3
         self.loss_scale = True
 
@@ -119,7 +119,7 @@ class ExperimentConfig:
 class DistributionConfig:
     def __init__(self, dim: int):
         self.dim = dim
-        base_dir = "/projects/static2dynamic/datasets/Multiome/dim100"
+        base_dir = "/path/to/dim100"
 
         self.distributions = [
             MultiConfig(

@@ -1,10 +1,42 @@
 # utils/metrics
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 import torch
 from torch import Tensor
 import ot  # POT: Python Optimal Transport
 import numpy as np
 from utils.kernels import MMDLoss, RBF
+import joblib
+
+
+# ---------- Denormalization Helper ----------
+
+
+def load_scaler(scaler_path: str):
+    """Load a sklearn scaler from a pickle file."""
+    return joblib.load(scaler_path)
+
+
+def denormalize_tensor(data: Tensor, scaler) -> Tensor:
+    """
+    Denormalize a tensor using a fitted sklearn scaler.
+    
+    Args:
+        data: Tensor of shape (N, D) or list of tensors
+        scaler: Fitted sklearn scaler (e.g., StandardScaler)
+    
+    Returns:
+        Denormalized tensor of same shape
+    """
+    device = data.device
+    dtype = data.dtype
+    data_np = data.detach().cpu().numpy()
+    denorm_np = scaler.inverse_transform(data_np)
+    return torch.tensor(denorm_np, device=device, dtype=dtype)
+
+
+def denormalize_generated(generated: List[Tensor], scaler) -> List[Tensor]:
+    """Denormalize a list of generated tensors."""
+    return [denormalize_tensor(g, scaler) for g in generated]
 
 
 # ---------- Classic Statistics ----------
@@ -197,6 +229,7 @@ def evaluate_wd_over_time(
     return wd_scores
 
 
+
 def evaluate_w1_over_time(
     generated: List[Tensor],
     time: List[float],
@@ -343,6 +376,7 @@ def evaluate_mmd_over_time(
     direction_tosample: str,
     kernel_type: str = "gaussian",
     blur: float = 1.0,
+    rescale_data: bool = False,
 ) -> List[Tuple[float, float]]:
     """
     Computes MMD over time using either GeomLoss or custom RBF kernel.
@@ -350,6 +384,7 @@ def evaluate_mmd_over_time(
     Args:
         ...
         kernel_type (str): "gaussian", "energy", "laplacian", or "rbf"
+        rescale_data (bool): Whether to rescale reference data using saved scaler
     """
     assert direction_tosample in ["forward", "backward"]
 
@@ -380,7 +415,7 @@ def evaluate_mmd_over_time(
 
     for dataset in sorted_datasets:
         ref_time = dataset.get_time()
-        ref_data = dataset.get_all().to(generated[0].device)
+        ref_data = dataset.get_all(rescale_data=rescale_data).to(generated[0].device)
 
         closest_idx = int(torch.argmin(torch.abs(time_tensor - ref_time)).item())
         gen_samples = generated[closest_idx]

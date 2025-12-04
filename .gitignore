@@ -12,3 +12,5 @@ notebooks/
 
 datasets/data/mnist
 *.code-workspace
+
+sweep_logs

@@ -10,18 +10,18 @@ class ExperimentConfig:
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES_MULTI"
         self.experiment_dir = "experiments"
-        self.experiment_name = "multi_dim5_sigma0.1"
+        self.experiment_name = "multi_dim100_sigma0.1_loo2"
         self.experiment_type = ""
 
         # ───── Data Parameters
-        self.dim = 5
+        self.dim = 100
         self.batch_size = 1024
         self.n_distributions = 4
         self.separation_train_test = True
         self.nb_points_test = 1000
         self.recreate_dataset = False
         self.max_pairs = 100_000
-        self.leave_out_list = []
+        self.leave_out_list = [2]
 
         # ───── Dataset Configuration
         self.distributions = DistributionConfig(dim=self.dim)
@@ -36,7 +36,7 @@ class ExperimentConfig:
         self.sigma_linspace = None
         self.num_simulation_steps = 150
         self.nb_inner_opt_steps = 10_000
-        self.nb_outer_iterations = 50
+        self.nb_outer_iterations = 100
         self.eps = 1e-3
         self.loss_scale = True
 
@@ -59,11 +59,11 @@ class ExperimentConfig:
         self.model_name = "mlp"
 
         # ───── Network: Forward score model
-        self.net_fwd_layers = [256, 256]
+        self.net_fwd_layers = [256, 256, 256]
         self.net_fwd_time_dim = 128
 
         # ───── Network: Backward score model
-        self.net_bwd_layers = [256, 256]
+        self.net_bwd_layers = [256, 256, 256]
         self.net_bwd_time_dim = 128
 
         # ───── Inference
@@ -74,36 +74,39 @@ class ExperimentConfig:
         self.fps = 20
         self.plot_vis = True
         self.log_wandb_traj = True
-        self.plot_vis_n_epoch = 1
+        self.plot_vis_n_epoch = 3
         self.num_sample_vis = 1024
         self.plot_traj = False
         self.number_traj = 20
 
         # ───── Metrics
-        self.rescale = False
-
         self.log_wandb_loss = True
 
         self.display_swd = True
         self.log_wandb_swd = True
-        self.display_swd_n_epoch = 1
+        self.display_swd_n_epoch = 3
 
         self.display_mmd = True
         self.log_wandb_mmd = True
-        self.display_mmd_n_epoch = 1
+        self.display_mmd_n_epoch = 3
         self.mmd_kernel = "rbf"
         self.mmd_blur = 1.0
 
         # W1 metric (used in MSBM paper for MULTI benchmark)
         self.compute_w1 = True
 
+        # Denormalize (rescale) generated samples and GT before computing metrics
+        # When True, metrics are computed on original scale (before whitening)
+        # Requires scaler.pkl in the data directory
+        self.rescale = True
+
         self.display_energy = False
         self.log_wandb_energy = False
-        self.display_energy_n_epoch = 1
+        self.display_energy_n_epoch = 3
 
         # ───── Save Networks
         self.save_networks = True
-        self.save_networks_n_epoch = 1
+        self.save_networks_n_epoch = 3
 
         # ------- Save Generation
         self.save_generation = True
@@ -119,7 +122,7 @@ class ExperimentConfig:
 class DistributionConfig:
     def __init__(self, dim: int):
         self.dim = dim
-        base_dir = "/projects/static2dynamic/datasets/Multiome/dim5"
+        base_dir = "/path/to/dim100_whitened"
 
         self.distributions = [
             MultiConfig(

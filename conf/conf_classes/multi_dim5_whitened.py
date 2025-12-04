@@ -10,18 +10,18 @@ class ExperimentConfig:
         # ───── Experiment Info
         self.project_name = "DSBM_N_BRIDGES_MULTI"
         self.experiment_dir = "experiments"
-        self.experiment_name = "multi_dim100_bignet_sigma0.3"
+        self.experiment_name = "multi_dim5_sigma0.5_loo2"
         self.experiment_type = ""
 
         # ───── Data Parameters
-        self.dim = 100
+        self.dim = 5
         self.batch_size = 1024
         self.n_distributions = 4
         self.separation_train_test = True
         self.nb_points_test = 1000
         self.recreate_dataset = False
         self.max_pairs = 100_000
-        self.leave_out_list = []
+        self.leave_out_list = [2]
 
         # ───── Dataset Configuration
         self.distributions = DistributionConfig(dim=self.dim)
@@ -31,12 +31,12 @@ class ExperimentConfig:
         self.first_direction = "backward"
         self.coeff_sigma = 1
         self.first_coupling = "ind"
-        self.sigma = 0.3
+        self.sigma = 0.5
         self.sigma_mode = "mono"  # "mono", "multi", "multi_dim"
         self.sigma_linspace = None
         self.num_simulation_steps = 150
         self.nb_inner_opt_steps = 10_000
-        self.nb_outer_iterations = 50
+        self.nb_outer_iterations = 100
         self.eps = 1e-3
         self.loss_scale = True
 
@@ -59,11 +59,11 @@ class ExperimentConfig:
         self.model_name = "mlp"
 
         # ───── Network: Forward score model
-        self.net_fwd_layers = [512, 512, 512]
+        self.net_fwd_layers = [256, 256]
         self.net_fwd_time_dim = 128
 
         # ───── Network: Backward score model
-        self.net_bwd_layers = [512, 512, 512]
+        self.net_bwd_layers = [256, 256]
         self.net_bwd_time_dim = 128
 
         # ───── Inference
@@ -119,7 +119,7 @@ class ExperimentConfig:
 class DistributionConfig:
     def __init__(self, dim: int):
         self.dim = dim
-        base_dir = "/projects/static2dynamic/datasets/Multiome/dim100"
+        base_dir = "/path/to/dim5_whitened"
 
         self.distributions = [
             MultiConfig(

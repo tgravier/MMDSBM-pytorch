@@ -19,7 +19,6 @@ from typing import Union, List, Tuple
 from utils.metrics import (
     evaluate_swd_over_time,
     evaluate_energy_over_time,
-    evaluate_wd_over_time,
     evaluate_mmd_over_time,
     evaluate_w1_over_time,
     evaluate_w1_consecutive,
@@ -338,16 +337,18 @@ class N_Bridges(IMF_DSBM):
         if rescale:
             generated_rescale = []
             path = datasets_inference[0].get_path()
-            path = os.path.dirname(path)
             if path is None:
                 raise ValueError(
-                    "Path to scaler.pkl must be provided to inverse rescale data."
+                    "Path to scaler.pkl must be provided to inverse rescale data. "
+                    "Ensure datasets have path attribute set."
                 )
 
-            scaler_path = os.path.join(path, "scaler.pkl")
+            scaler_dir = os.path.dirname(path)
+            scaler_path = os.path.join(scaler_dir, "scaler.pkl")
             if not os.path.exists(scaler_path):
                 raise FileNotFoundError(f"Scaler file not found at {scaler_path}")
 
+            print(f"[DENORMALIZATION] Loading scaler from {scaler_path}")
             scaler = joblib.load(scaler_path)
             for tensor in generated:
                 inversed_data = torch.tensor(
@@ -355,6 +356,9 @@ class N_Bridges(IMF_DSBM):
                     device=device,
                 )
                 generated_rescale.append(inversed_data)
+            print(
+                f"[DENORMALIZATION] Denormalized {len(generated_rescale)} time-point tensors for metrics"
+            )
 
             return generated, generated_rescale, time
 
@@ -591,16 +595,28 @@ class N_Bridges(IMF_DSBM):
                     },
                 )
 
-        # ───── SWD and WD
+        # ───── Determine which data to use for metrics
+        # When rescale=True, use denormalized data for all metrics
+        if args.rescale and generated is not None:
+            gen_for_metrics = generated_rescale
+            rescale_data = True
+            metric_suffix = " (rescaled)"
+        else:
+            gen_for_metrics = generated
+            rescale_data = False
+            metric_suffix = ""
+
+        # ───── SWD
         if do_swd and generated is not None:
             swd_scores = evaluate_swd_over_time(
-                generated=generated,
+                generated=gen_for_metrics,
                 time=time,
                 datasets_inference=datasets_inference,
                 direction_tosample=direction_to_train,
+                rescale_data=rescale_data,
             )
             for t, swd in swd_scores:
-                print(f"[SWD @ t={t:.2f}] = {swd:.4f}")
+                print(f"[SWD @ t={t:.2f}]{metric_suffix} = {swd:.4f}")
                 if args.log_wandb_swd:
                     self.tracking_logger.log(
                         {
@@ -609,58 +625,30 @@ class N_Bridges(IMF_DSBM):
                         },
                     )
 
-            # Remove the first element and compute the mean over the second dimension
+            # Compute and log SWD mean (excluding first time point)
             if len(swd_scores) > 1:
                 swd_values = [swd for _, swd in swd_scores[1:]]
                 swd_mean = float(np.mean(swd_values))
-                print(f"[SWD MEAN] = {swd_mean:.4f}")
+                print(f"[SWD MEAN]{metric_suffix} = {swd_mean:.4f}")
                 self.tracking_logger.log(
                     {
                         f"swd_mean/{direction_to_train}": swd_mean,
                         "epoch": outer_iter_idx,
                     },
                 )
-            if args.rescale:
-                swd_scores = evaluate_swd_over_time(
-                    generated=generated_rescale,
-                    time=time,
-                    datasets_inference=datasets_inference,
-                    direction_tosample=direction_to_train,
-                    rescale_data=True,
-                )
-                for t, swd in swd_scores:
-                    print(f"[SWD RESCALE @ t={t:.2f}] = {swd:.4f}")
-                    if args.log_wandb_swd:
-                        self.tracking_logger.log(
-                            {
-                                f"swd_rescale/{direction_to_train}/t={t:.2f}": swd,
-                                "epoch": outer_iter_idx,
-                            },
-                        )
-
-                # Remove the first element and compute the mean over the second dimension
-                if len(swd_scores) > 1:
-                    swd_values = [swd for _, swd in swd_scores[1:]]
-                    swd_mean = float(np.mean(swd_values))
-                    print(f"[SWD RESCALE MEAN] = {swd_mean:.4f}")
-                    self.tracking_logger.log(
-                        {
-                            f"swd_rescale_mean/{direction_to_train}": swd_mean,
-                            "epoch": outer_iter_idx,
-                        },
-                    )
 
         # ───── MMD
         if do_mmd and generated is not None:
             mmd_scores = evaluate_mmd_over_time(
-                generated=generated,
+                generated=gen_for_metrics,
                 time=time,
                 datasets_inference=datasets_inference,
                 direction_tosample=direction_to_train,
                 kernel_type=args.mmd_kernel,
+                rescale_data=rescale_data,
             )
             for t, mmd in mmd_scores:
-                print(f"[MMD @ t={t:.2f}] = {mmd:.4f}")
+                print(f"[MMD @ t={t:.2f}]{metric_suffix} = {mmd:.4f}")
                 if args.log_wandb_mmd:
                     self.tracking_logger.log(
                         {
@@ -673,7 +661,7 @@ class N_Bridges(IMF_DSBM):
             if len(mmd_scores) > 1:
                 mmd_values = [mmd for _, mmd in mmd_scores[1:]]
                 mmd_mean = float(np.mean(mmd_values))
-                print(f"[MMD MEAN] = {mmd_mean:.4f}")
+                print(f"[MMD MEAN]{metric_suffix} = {mmd_mean:.4f}")
                 if args.log_wandb_mmd:
                     self.tracking_logger.log(
                         {
@@ -685,13 +673,14 @@ class N_Bridges(IMF_DSBM):
         # ───── W1 (Wasserstein-1)
         if getattr(args, "compute_w1", False) and generated is not None:
             w1_scores = evaluate_w1_over_time(
-                generated=generated,
+                generated=gen_for_metrics,
                 time=time,
                 datasets_inference=datasets_inference,
                 direction_tosample=direction_to_train,
+                rescale_data=rescale_data,
             )
             for t, w1 in w1_scores:
-                print(f"[W1 @ t={t:.2f}] = {w1:.4f}")
+                print(f"[W1 @ t={t:.2f}]{metric_suffix} = {w1:.4f}")
                 self.tracking_logger.log(
                     {
                         f"w1/{direction_to_train}/t={t:.2f}": w1,
@@ -703,7 +692,7 @@ class N_Bridges(IMF_DSBM):
             if len(w1_scores) > 1:
                 w1_values = [w1 for _, w1 in w1_scores[1:]]
                 w1_mean = float(np.mean(w1_values))
-                print(f"[W1 MEAN] = {w1_mean:.4f}")
+                print(f"[W1 MEAN]{metric_suffix} = {w1_mean:.4f}")
                 self.tracking_logger.log(
                     {
                         f"w1_mean/{direction_to_train}": w1_mean,
@@ -713,13 +702,14 @@ class N_Bridges(IMF_DSBM):
 
             # ───── W1 consecutive: compare p_gen(t) with p_test(t-1)
             w1_prev_scores = evaluate_w1_consecutive(
-                generated=generated,
+                generated=gen_for_metrics,
                 time=time,
                 datasets_inference=datasets_inference,
                 direction_tosample=direction_to_train,
+                rescale_data=rescale_data,
             )
             for t, w1_prev in w1_prev_scores:
-                print(f"[W1_PREV @ t={t:.2f}] = {w1_prev:.4f}")
+                print(f"[W1_PREV @ t={t:.2f}]{metric_suffix} = {w1_prev:.4f}")
                 self.tracking_logger.log(
                     {
                         f"w1_prev/{direction_to_train}/t={t:.2f}": w1_prev,
@@ -731,7 +721,7 @@ class N_Bridges(IMF_DSBM):
             if len(w1_prev_scores) > 0:
                 w1_prev_values = [w1 for _, w1 in w1_prev_scores]
                 w1_prev_mean = float(np.mean(w1_prev_values))
-                print(f"[W1_PREV MEAN] = {w1_prev_mean:.4f}")
+                print(f"[W1_PREV MEAN]{metric_suffix} = {w1_prev_mean:.4f}")
                 self.tracking_logger.log(
                     {
                         f"w1_prev_mean/{direction_to_train}": w1_prev_mean,

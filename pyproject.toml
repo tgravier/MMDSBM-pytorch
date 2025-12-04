@@ -24,6 +24,7 @@ dependencies = [
     "pot>=0.9.5",
     "pyarrow>=21.0.0",
     "python-magic>=0.4.27",
+    "scanpy>=1.11.5",
     "scikit-learn>=1.6.1",
     "scipy>=1.15.3",
     "sentencepiece>=0.2.1",

@@ -52,6 +52,7 @@ class TimedDataset(Dataset):
 
             path = os.path.dirname(self.path)
             scaler_path = os.path.join(path, "scaler.pkl")
+            print(f"Loaded scaler from: {scaler_path}")
 
             if not os.path.exists(scaler_path):
                 raise FileNotFoundError(f"Scaler file not found at {scaler_path}")
@@ -210,7 +211,7 @@ def load_dataset(
                 TimedDataset(data_test, time, path),
             )
         return TimedDataset(data_pt, time, path, type="large_scale")
-    
+
     elif name == "biotine_latent":
         path = params["file_path"]
         if not os.path.exists(path):
@@ -218,7 +219,6 @@ def load_dataset(
                 f"Expected file '{path}' for time={time} not found."
             )
         data_pt = torch.load(path)
-
 
         if separation_train_test:
             data_train, data_test = random_split(data_pt, nb_points_test)

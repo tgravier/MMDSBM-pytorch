@@ -2,7 +2,7 @@
 
 import os
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 
 import argparse
 from bridge.runners.train_runner import trainer_bridges
@@ -45,6 +45,12 @@ def main():
         default=1,
         help="Number of inference runs to compute metrics with uncertainty (default: 1)",
     )
+    # CLI overrides for sweeps
+    parser.add_argument("--sigma", type=float, help="Override sigma value")
+    parser.add_argument(
+        "--leave_out", type=int, help="Override leave_out_list (single value)"
+    )
+    parser.add_argument("--seed", type=int, help="Override seed")
     args = parser.parse_args()
 
     # Safety check
@@ -56,7 +62,7 @@ def main():
         if not args.weight_epoch:
             raise ValueError("When using --inference, you must provide --weight_epoch")
         config_classes = load_config(
-            experiment_path=args.experiment_path, resume_train=True
+            experiment_path=args.experiment_path, inference=True
         )
     elif args.resume_train:
         if not args.experiment_path:
@@ -64,14 +70,29 @@ def main():
                 "When using --resume_train, you must provide --experiment_path"
             )
         config_classes = load_config(
-            experiment_path=args.experiment_path, resume_train=False, inference=True
+            experiment_path=args.experiment_path, resume_train=True
         )
     else:
         if not args.config:
             raise ValueError(
                 "You must provide --config when not using --resume_train or --inference"
             )
-        config_classes = load_config(config_name=args.config, resume_train=False)
+
+        # Build CLI overrides dict to pass to load_config
+        cli_overrides = {}
+        if args.sigma is not None:
+            cli_overrides["sigma"] = args.sigma
+            cli_overrides["sigma_inference"] = args.sigma
+        if args.leave_out is not None:
+            cli_overrides["leave_out_list"] = [args.leave_out]
+        if args.seed is not None:
+            cli_overrides["seed"] = args.seed
+
+        config_classes = load_config(
+            config_name=args.config,
+            resume_train=False,
+            cli_overrides=cli_overrides if cli_overrides else None,
+        )
 
     # Setup logger
     logger = setup_logger(config_classes)

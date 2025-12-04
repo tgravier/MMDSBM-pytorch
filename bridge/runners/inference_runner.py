@@ -101,6 +101,14 @@ def inference_bridges(
 
     # Load test datasets from experiment directory if they exist
     rescale = getattr(config_classes, "rescale", False)
+    if rescale:
+        logger.info(
+            "[RESCALE] rescale=True: metrics will be computed on DENORMALIZED (original) scale"
+        )
+    else:
+        logger.info(
+            "[RESCALE] rescale=False: metrics will be computed on normalized scale"
+        )
     try:
         datasets_inference = load_test_datasets(experiment_path, rescale=rescale)
         logger.info(
@@ -121,13 +129,9 @@ def inference_bridges(
             )
 
     # Store metrics for multiple runs
-
     swd_scores = []
     mmd_scores = []
     w1_scores = []
-    swd_scores_rescale = []
-    mmd_scores_rescale = []
-    w1_scores_rescale = []
 
     logger.info(
         f"Running {n_runs} inference run(s) to compute metrics with uncertainty..."
@@ -141,13 +145,12 @@ def inference_bridges(
         )
         datasets_for_inference = trainer.leave_out_datasets(datasets_for_inference)
 
-        rescale = getattr(config_classes, "rescale", False)
-
         for run_idx in range(n_runs):
             logger.info(f"Starting inference run {run_idx + 1}/{n_runs}")
 
-            # Run inference
+            # Run inference - if rescale=True, we get denormalized generated samples
             if rescale:
+                logger.info(f"[RESCALE] Generating samples and denormalizing...")
                 result = trainer.inference_test(
                     args=config_classes,
                     datasets_inference=datasets_for_inference,
@@ -159,12 +162,17 @@ def inference_bridges(
                     sigma=getattr(config_classes, "sigma_inference", 0.0),
                     rescale=True,
                 )
-                # Peut retourner (generated, generated_rescale, time) ou (generated, time)
+                # Returns (generated_normalized, generated_denormalized, time)
                 if len(result) == 3:
-                    generated, generated_rescale, time = result
+                    _, generated, time = result  # Use denormalized for metrics
+                    logger.info(
+                        f"[RESCALE] Using DENORMALIZED generated samples for metrics"
+                    )
                 else:
                     generated, time = result
-                    generated_rescale = None
+                    logger.warning(
+                        "[RESCALE] rescale=True but inference_test didn't return denormalized samples"
+                    )
             else:
                 result = trainer.inference_test(
                     args=config_classes,
@@ -180,10 +188,9 @@ def inference_bridges(
                     generated, _, time = result
                 else:
                     generated, time = result
-                generated_rescale = None
 
             # Compute metrics for generated
-            logger.info(f"Computing metrics for run {run_idx + 1} (generated)")
+            logger.info(f"Computing metrics for run {run_idx + 1}")
             try:
                 swd_results = evaluate_swd_over_time(
                     generated=generated,
@@ -191,6 +198,7 @@ def inference_bridges(
                     datasets_inference=datasets_for_inference,
                     direction_tosample="forward",
                     n_proj=50,
+                    rescale_data=rescale,  # Denormalize reference data if rescale=True
                 )
                 run_swd_values = [swd for t, swd in swd_results]
                 swd_scores.append(run_swd_values)
@@ -207,6 +215,7 @@ def inference_bridges(
                     direction_tosample="forward",
                     kernel_type=getattr(config_classes, "mmd_kernel", "rbf"),
                     blur=getattr(config_classes, "mmd_blur", 1.0),
+                    rescale_data=rescale,  # Denormalize reference data if rescale=True
                 )
                 run_mmd_values = [mmd for t, mmd in mmd_results]
                 mmd_scores.append(run_mmd_values)
@@ -222,55 +231,12 @@ def inference_bridges(
                     time=time,
                     datasets_inference=datasets_for_inference,
                     direction_tosample="forward",
+                    rescale_data=rescale,  # Denormalize reference data if rescale=True
                 )
                 run_w1_values = [w1 for t, w1 in w1_results]
                 w1_scores.append(run_w1_values)
                 for t, w1 in w1_results:
                     logger.info(f"Run {run_idx + 1} - W1 @ t={t:.2f}: {w1:.6f}")
-
-            # Compute metrics for generated_rescale si dispo
-            if rescale and generated_rescale is not None:
-                logger.info(
-                    f"Computing metrics for run {run_idx + 1} (generated_rescale)"
-                )
-                try:
-                    swd_results_rescale = evaluate_swd_over_time(
-                        generated=generated_rescale,
-                        time=time,
-                        datasets_inference=datasets_for_inference,
-                        direction_tosample="forward",
-                        n_proj=50,
-                    )
-                    run_swd_values_rescale = [swd for t, swd in swd_results_rescale]
-                    swd_scores_rescale.append(run_swd_values_rescale)
-                    for t, swd in swd_results_rescale:
-                        logger.info(
-                            f"Run {run_idx + 1} - SWD RESCALE @ t={t:.2f}: {swd:.6f}"
-                        )
-                except Exception as e:
-                    logger.warning(
-                        f"Failed to compute SWD RESCALE for run {run_idx + 1}: {e}"
-                    )
-
-                try:
-                    mmd_results_rescale = evaluate_mmd_over_time(
-                        generated=generated_rescale,
-                        time=time,
-                        datasets_inference=datasets_for_inference,
-                        direction_tosample="forward",
-                        kernel_type=getattr(config_classes, "mmd_kernel", "rbf"),
-                        blur=getattr(config_classes, "mmd_blur", 1.0),
-                    )
-                    run_mmd_values_rescale = [mmd for t, mmd in mmd_results_rescale]
-                    mmd_scores_rescale.append(run_mmd_values_rescale)
-                    for t, mmd in mmd_results_rescale:
-                        logger.info(
-                            f"Run {run_idx + 1} - MMD RESCALE @ t={t:.2f}: {mmd:.6f}"
-                        )
-                except Exception as e:
-                    logger.warning(
-                        f"Failed to compute MMD RESCALE for run {run_idx + 1}: {e}"
-                    )
 
     # Compute final statistics
     if swd_scores:
@@ -293,33 +259,6 @@ def inference_bridges(
             logger.info(f"SWD @ t={t:.2f}: {mean_swd:.6f} ± {std_swd:.6f}")
             print(f"SWD @ t={t:.2f}: {mean_swd:.6f} ± {std_swd:.6f}")
 
-    # --- RESCALE FINAL STATS ---
-    if swd_scores_rescale:
-        swd_array_rescale = np.array(swd_scores_rescale)
-        swd_means_per_time_rescale = np.mean(swd_array_rescale, axis=0)
-        swd_stds_per_time_rescale = (
-            np.std(swd_array_rescale, axis=0)
-            if len(swd_scores_rescale) > 1
-            else np.zeros_like(swd_means_per_time_rescale)
-        )
-        swd_overall_mean_rescale = np.mean(swd_array_rescale)
-        swd_overall_std_rescale = (
-            np.std(swd_array_rescale) if len(swd_scores_rescale) > 1 else 0.0
-        )
-        logger.info("=== SWD RESCALE Results ===")
-        logger.info(
-            f"Overall SWD RESCALE: {swd_overall_mean_rescale:.6f} ± {swd_overall_std_rescale:.6f}"
-        )
-        print(
-            f"Overall SWD RESCALE: {swd_overall_mean_rescale:.6f} ± {swd_overall_std_rescale:.6f}"
-        )
-        time_values = [ds.get_time() for ds in datasets_for_inference]
-        for i, (t, mean_swd, std_swd) in enumerate(
-            zip(time_values, swd_means_per_time_rescale, swd_stds_per_time_rescale)
-        ):
-            logger.info(f"SWD RESCALE @ t={t:.2f}: {mean_swd:.6f} ± {std_swd:.6f}")
-            print(f"SWD RESCALE @ t={t:.2f}: {mean_swd:.6f} ± {std_swd:.6f}")
-
     if mmd_scores:
         mmd_array = np.array(mmd_scores)
         mmd_means_per_time = np.mean(mmd_array, axis=0)
@@ -339,32 +278,6 @@ def inference_bridges(
         ):
             logger.info(f"MMD @ t={t:.2f}: {mean_mmd:.6f} ± {std_mmd:.6f}")
             print(f"MMD @ t={t:.2f}: {mean_mmd:.6f} ± {std_mmd:.6f}")
-
-    if mmd_scores_rescale:
-        mmd_array_rescale = np.array(mmd_scores_rescale)
-        mmd_means_per_time_rescale = np.mean(mmd_array_rescale, axis=0)
-        mmd_stds_per_time_rescale = (
-            np.std(mmd_array_rescale, axis=0)
-            if len(mmd_scores_rescale) > 1
-            else np.zeros_like(mmd_means_per_time_rescale)
-        )
-        mmd_overall_mean_rescale = np.mean(mmd_array_rescale)
-        mmd_overall_std_rescale = (
-            np.std(mmd_array_rescale) if len(mmd_scores_rescale) > 1 else 0.0
-        )
-        logger.info("=== MMD RESCALE Results ===")
-        logger.info(
-            f"Overall MMD RESCALE: {mmd_overall_mean_rescale:.6f} ± {mmd_overall_std_rescale:.6f}"
-        )
-        print(
-            f"Overall MMD RESCALE: {mmd_overall_mean_rescale:.6f} ± {mmd_overall_std_rescale:.6f}"
-        )
-        time_values = [ds.get_time() for ds in datasets_for_inference]
-        for i, (t, mean_mmd, std_mmd) in enumerate(
-            zip(time_values, mmd_means_per_time_rescale, mmd_stds_per_time_rescale)
-        ):
-            logger.info(f"MMD RESCALE @ t={t:.2f}: {mean_mmd:.6f} ± {std_mmd:.6f}")
-            print(f"MMD RESCALE @ t={t:.2f}: {mean_mmd:.6f} ± {std_mmd:.6f}")
 
     # W1 Results (for MULTI benchmark)
     w1_overall_mean = 0.0

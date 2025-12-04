@@ -3,7 +3,7 @@ import importlib.util
 import inspect
 import shutil
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 
 
 def load_config(
@@ -11,6 +11,7 @@ def load_config(
     experiment_path: str = None,
     resume_train: bool = False,
     inference: bool = False,
+    cli_overrides: Optional[Dict[str, Any]] = None,
 ):
     """
     Load configuration either from conf.conf_classes.<config_name> (normal mode)
@@ -50,6 +51,20 @@ def load_config(
     experiment_cfg = ExperimentConfigCls()
     distribution_cfg = experiment_cfg.distributions
     experiment_cfg.distribution_cfg = distribution_cfg
+
+    # Apply CLI overrides BEFORE folder creation
+    if cli_overrides:
+        for key, value in cli_overrides.items():
+            if hasattr(experiment_cfg, key):
+                setattr(experiment_cfg, key, value)
+
+        # Update experiment name to reflect overrides
+        sigma_str = f"sigma{experiment_cfg.sigma}"
+        loo_str = f"loo{experiment_cfg.leave_out_list[0]}"
+        seed_str = f"seed{experiment_cfg.seed}"
+        experiment_cfg.experiment_name = (
+            f"{config_name}_{sigma_str}_{loo_str}_{seed_str}"
+        )
 
     exp_root = Path(experiment_cfg.experiment_dir)
     exp_path = exp_root / experiment_cfg.experiment_name
@@ -265,10 +280,10 @@ def load_test_datasets(experiment_path: str, rescale: bool = False):
             dist = distributions[idx]
 
         # Si rescale, on passe le dirname du file_path de la config
-        if rescale :
+        if rescale:
             import os
 
-            path = dist.params['file_path']
+            path = dist.params["file_path"]
             timed_dataset = TimedDataset(
                 data=dataset_dict["data"], time=dataset_dict["time"], path=path
             )
