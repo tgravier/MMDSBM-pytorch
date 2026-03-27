@@ -101,12 +101,17 @@ class N_Bridges(IMF_DSBM):
 
     def leave_out_datasets(self, time_datasets_list):
         datasets_train_filtered = []
+        left_out_times = []
         for ds in time_datasets_list:
             if ds.get_time() in self.args.leave_out_list:
                 print(f"Leaving out dataset at time {ds.get_time()}")
                 self.args.leave_out_list.append(ds)
+                left_out_times.append(ds.get_time())
             else:
                 datasets_train_filtered.append(ds)
+        retained_times = [ds.get_time() for ds in datasets_train_filtered]
+        print(f"[LEAVE-OUT] {len(left_out_times)} excluded {left_out_times}, "
+              f"{len(datasets_train_filtered)} retained {retained_times}")
         return datasets_train_filtered
 
     def min_max_time(self, datasets):
@@ -601,10 +606,15 @@ class N_Bridges(IMF_DSBM):
             gen_for_metrics = generated_rescale
             rescale_data = True
             metric_suffix = " (rescaled)"
+            print(f"[METRICS] Using RESCALED (denormalized) data for metrics")
+            print(f"[METRICS] Generated shapes: {[g.shape for g in gen_for_metrics]}")
         else:
             gen_for_metrics = generated
             rescale_data = False
             metric_suffix = ""
+            if generated is not None:
+                print(f"[METRICS] Using normalized data for metrics")
+                print(f"[METRICS] Generated shapes: {[g.shape for g in gen_for_metrics]}")
 
         # ───── SWD
         if do_swd and generated is not None:
@@ -754,4 +764,3 @@ class N_Bridges(IMF_DSBM):
                     net_dict, direction_to_train, outer_iter_idx
                 )
             )
-            self.tracking_logger.run.save(archive_path)

@@ -1,9 +1,6 @@
 # main.py
 
 import os
-
-os.environ["CUDA_VISIBLE_DEVICES"] = "2"
-
 import argparse
 from bridge.runners.train_runner import trainer_bridges
 from bridge.runners.inference_runner import inference_bridges
@@ -48,10 +45,14 @@ def main():
     # CLI overrides for sweeps
     parser.add_argument("--sigma", type=float, help="Override sigma value")
     parser.add_argument(
-        "--leave_out", type=int, help="Override leave_out_list (single value)"
+        "--leave_out", type=int, nargs="+", help="Override leave_out_list (e.g. --leave_out 1 3)"
     )
     parser.add_argument("--seed", type=int, help="Override seed")
+    parser.add_argument("--gpu", type=str, default=None, help="CUDA_VISIBLE_DEVICES (e.g. --gpu 0)")
     args = parser.parse_args()
+
+    if args.gpu is not None:
+        os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
 
     # Safety check
     if args.inference:
@@ -84,7 +85,7 @@ def main():
             cli_overrides["sigma"] = args.sigma
             cli_overrides["sigma_inference"] = args.sigma
         if args.leave_out is not None:
-            cli_overrides["leave_out_list"] = [args.leave_out]
+            cli_overrides["leave_out_list"] = args.leave_out
         if args.seed is not None:
             cli_overrides["seed"] = args.seed
 
@@ -102,7 +103,7 @@ def main():
     tracking_logger = WandbLogger(
         config=export_config_dict(config_classes=config_classes),
         project=config_classes.project_name,
-        run_name=config_classes.experiment_dir + "/" + config_classes.experiment_name,
+        run_name=config_classes.experiment_name,
     )
 
     if args.inference:

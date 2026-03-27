@@ -3,9 +3,10 @@
 Minimal sweep script for hyperparameter grid search.
 
 Usage:
-    python sweep.py --config multi_dim100 --dry_run  # Preview commands
-    python sweep.py --config multi_dim100            # Run sequentially
-    python sweep.py --config multi_dim100 --parallel 4  # Run 4 in parallel
+    python sweep.py --config multi_dim100 --sigmas 0.7 0.8 0.9 1.0 --n-seeds 3 --dry-run
+    python sweep.py --config multi_dim100 --sigmas 0.7 0.8 0.9 1.0 --n-seeds 3
+    python sweep.py --config multi_dim100 --sigmas 0.7 0.8 0.9 1.0 --n-seeds 3 --parallel 4
+    python sweep.py --config phate_dim100_loo --sigmas 0.1 0.2 0.5 1.0 --n-seeds 3 --no-leave-out --dry-run
 """
 
 import argparse
@@ -15,12 +16,7 @@ import time
 from itertools import product
 from pathlib import Path
 
-# ===== SWEEP CONFIGURATION =====
-SIGMAS = [round(0.1 * i, 1) for i in range(7, 11)]
-LEAVE_OUTS = [1, 2]
-N_SEEDS = 3
 LOG_DIR = Path("sweep_logs")
-# ===============================
 
 
 def run_cmd(cmd_with_idx):
@@ -47,14 +43,22 @@ def run_cmd(cmd_with_idx):
     return idx, cmd, result.returncode, str(log_file)
 
 
-def generate_commands(config: str) -> list:
+def generate_commands(config: str, sigmas: list, n_seeds: int, leave_outs=None) -> list:
     """Generate all sweep commands."""
     commands = []
-    for sigma, leave_out in product(SIGMAS, LEAVE_OUTS):
-        for _ in range(N_SEEDS):
-            seed = random.randint(0, 99999)
-            cmd = f"python main.py --config {config} --sigma {sigma} --leave_out {leave_out} --seed {seed}"
-            commands.append(cmd)
+    if leave_outs:
+        for sigma, leave_out in product(sigmas, leave_outs):
+            for _ in range(n_seeds):
+                seed = random.randint(0, 99999)
+                cmd = f"python main.py --config {config} --sigma {sigma} --leave_out {leave_out} --seed {seed}"
+                commands.append(cmd)
+    else:
+        # No leave_out variation (leave_out_list is fixed in the config)
+        for sigma in sigmas:
+            for _ in range(n_seeds):
+                seed = random.randint(0, 99999)
+                cmd = f"python main.py --config {config} --sigma {sigma} --seed {seed}"
+                commands.append(cmd)
     return commands
 
 
@@ -71,13 +75,62 @@ def main():
     parser.add_argument(
         "--parallel", type=int, default=1, help="Number of parallel jobs"
     )
+    parser.add_argument(
+        "--sigmas",
+        type=float,
+        nargs="+",
+        required=True,
+        help="Sigma values to sweep (e.g. --sigmas 0.1 0.2 0.5 1.0)",
+    )
+    parser.add_argument(
+        "--no-leave-out",
+        action="store_true",
+        dest="no_leave_out",
+        help="Skip --leave_out in commands (use leave_out_list from config)",
+    )
+    parser.add_argument(
+        "--n-seeds",
+        type=int,
+        required=True,
+        help="Number of random seeds per sigma combo",
+    )
+    parser.add_argument(
+        "--leave-outs",
+        type=int,
+        nargs="+",
+        help="Leave-out indices to sweep over (e.g. --leave-outs 1 2). Omit to use config's leave_out_list.",
+    )
+    parser.add_argument(
+        "--gpu",
+        type=str,
+        nargs="+",
+        default=None,
+        help="GPU(s) to use, round-robin across jobs (e.g. --gpu 0 1 2)",
+    )
     args = parser.parse_args()
 
-    commands = generate_commands(args.config)
+    leave_outs = (
+        args.leave_outs if args.leave_outs else ([] if args.no_leave_out else None)
+    )
+    if leave_outs is None:
+        parser.error("Provide --leave-outs or --no-leave-out")
+    commands = generate_commands(
+        args.config, sigmas=args.sigmas, n_seeds=args.n_seeds, leave_outs=leave_outs
+    )
+
+    # Assign GPUs round-robin
+    gpus = args.gpu
+    if gpus:
+        commands = [
+            f"{cmd} --gpu {gpus[i % len(gpus)]}" for i, cmd in enumerate(commands)
+        ]
     print(f"Generated {len(commands)} runs")
-    print(f"  Sigmas: {SIGMAS}")
-    print(f"  Leave-outs: {LEAVE_OUTS}")
-    print(f"  Seeds per combo: {N_SEEDS}")
+    print(f"  Sigmas: {args.sigmas}")
+    if leave_outs:
+        print(f"  Leave-outs: {leave_outs}")
+    else:
+        print("  Leave-outs: from config (--no-leave-out)")
+    print(f"  Seeds per combo: {args.n_seeds}")
     print()
 
     if args.dry_run:

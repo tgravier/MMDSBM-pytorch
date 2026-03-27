@@ -94,7 +94,7 @@ class ExperimentConfig:
         self.mmd_kernel = "rbf"
         self.mmd_blur = 1.0
 
-        # W1 metric (used in MSBM paper for MULTI benchmark)
+        # W1 metric
         self.compute_w1 = True
 
         self.display_energy = False

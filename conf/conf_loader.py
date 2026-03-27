@@ -60,7 +60,7 @@ def load_config(
 
         # Update experiment name to reflect overrides
         sigma_str = f"sigma{experiment_cfg.sigma}"
-        loo_str = f"loo{experiment_cfg.leave_out_list[0]}"
+        loo_str = "loo" + "_".join(str(x) for x in experiment_cfg.leave_out_list)
         seed_str = f"seed{experiment_cfg.seed}"
         experiment_cfg.experiment_name = (
             f"{config_name}_{sigma_str}_{loo_str}_{seed_str}"
