@@ -45,10 +45,21 @@ def main():
     # CLI overrides for sweeps
     parser.add_argument("--sigma", type=float, help="Override sigma value")
     parser.add_argument(
-        "--leave_out", type=int, nargs="+", help="Override leave_out_list (e.g. --leave_out 1 3)"
+        "--leave_out",
+        type=int,
+        nargs="+",
+        help="Override leave_out_list (e.g. --leave_out 1 3)",
     )
     parser.add_argument("--seed", type=int, help="Override seed")
-    parser.add_argument("--gpu", type=str, default=None, help="CUDA_VISIBLE_DEVICES (e.g. --gpu 0)")
+    parser.add_argument(
+        "--gpu", type=str, default=None, help="CUDA_VISIBLE_DEVICES (e.g. --gpu 0)"
+    )
+    parser.add_argument(
+        "--experiment_name",
+        type=str,
+        default=None,
+        help="Override the experiment name from the config",
+    )
     args = parser.parse_args()
 
     if args.gpu is not None:
@@ -88,6 +99,8 @@ def main():
             cli_overrides["leave_out_list"] = args.leave_out
         if args.seed is not None:
             cli_overrides["seed"] = args.seed
+        if args.experiment_name is not None:
+            cli_overrides["experiment_name"] = args.experiment_name
 
         config_classes = load_config(
             config_name=args.config,

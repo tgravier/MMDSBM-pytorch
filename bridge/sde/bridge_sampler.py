@@ -8,6 +8,7 @@ import torch
 from torch import Tensor
 from typing import Tuple
 import numpy as np
+from tqdm import tqdm
 from torch.utils.data import DataLoader, TensorDataset
 
 
@@ -252,7 +253,7 @@ def sample_sde(
     sigma = args.coeff_sigma * sigma
     sigma = sigma.view(*sigma.shape, *([1] * (z.ndim - sigma.ndim)))
 
-    for i in range(max_nb_steps):  # Starting from one to avoid the first nan which add just noise
+    for i in tqdm(range(max_nb_steps), desc="SDE simulation (train)", leave=False):  # Starting from one to avoid the first nan which add just noise
         mask = ~torch.isnan(ts[:, i])  # mask to filter out NaNs
 
         if mask.sum() == 0:
@@ -404,7 +405,7 @@ def inference_sample_sde(
 
     batchsize = z.shape[0]
 
-    for i in range(len(ts)):
+    for i in tqdm(range(len(ts)), desc="SDE simulation (inference)", leave=False):
         t = torch.full((batchsize, 1), float(ts[i]), device=device)
 
         t_list.append(ts[i] + dt_step * sign)

@@ -115,15 +115,16 @@ class IMF_DSBM:
 
         nb_inner_opt_steps = self.args.nb_inner_opt_steps
 
-        if self.args.warmup and outer_iter_idx == 0 and self.first_pass:
+        is_warmup = self.args.warmup and outer_iter_idx == 0 and self.first_pass
+        if is_warmup:
             print(f"WARMUP STEP {direction}")
-
             nb_inner_opt_steps = self.args.warmup_nb_inner_opt_steps
 
         # at this step we have dataloader with initial point generate and real end point
+        log_prefix = "warmup" if is_warmup else "training"
         pbar = tqdm(
             range(nb_inner_opt_steps),
-            desc=f"{direction} | Outer {outer_iter_idx}",
+            desc=f"{'WARMUP ' if is_warmup else ''}{direction} | Outer {outer_iter_idx}",
         )
 
         for inner_opt_step in pbar:
@@ -200,8 +201,8 @@ class IMF_DSBM:
                 self.fw_step_counter += 1
                 logger.log(
                     {
-                        f"training/loss/{direction}": loss.item(),
-                        f"training/grad/{direction}": total_norm,
+                        f"{log_prefix}/loss/{direction}": loss.item(),
+                        f"{log_prefix}/grad/{direction}": total_norm,
                         "fw_step": self.fw_step_counter,
                     }
                 )
@@ -209,8 +210,8 @@ class IMF_DSBM:
                 self.bw_step_counter += 1
                 logger.log(
                     {
-                        f"training/loss/{direction}": loss.item(),
-                        f"training/grad/{direction}": total_norm,
+                        f"{log_prefix}/loss/{direction}": loss.item(),
+                        f"{log_prefix}/grad/{direction}": total_norm,
                         "bw_step": self.bw_step_counter,
                     }
                 )

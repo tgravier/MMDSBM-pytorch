@@ -50,7 +50,9 @@ class N_Bridges(IMF_DSBM):
         self._validate_config_time_unique(distributions, "train")
 
         if len(distributions) != n_distribution:
-            raise ValueError("Length of distributions must match n_distribution")
+            raise ValueError(
+                f"Length of distributions must match n_distribution; got {len(distributions)} vs {n_distribution}"
+            )
 
         self.n_distribution = n_distribution
         self.distributions = distributions
@@ -110,8 +112,10 @@ class N_Bridges(IMF_DSBM):
             else:
                 datasets_train_filtered.append(ds)
         retained_times = [ds.get_time() for ds in datasets_train_filtered]
-        print(f"[LEAVE-OUT] {len(left_out_times)} excluded {left_out_times}, "
-              f"{len(datasets_train_filtered)} retained {retained_times}")
+        print(
+            f"[LEAVE-OUT] {len(left_out_times)} excluded {left_out_times}, "
+            f"{len(datasets_train_filtered)} retained {retained_times}"
+        )
         return datasets_train_filtered
 
     def min_max_time(self, datasets):
@@ -218,11 +222,22 @@ class N_Bridges(IMF_DSBM):
 
         all_times = torch.cat(all_times, dim=0)  # ((n_times - 1) * nb_pairs, 2)
 
-        if self.args.max_pairs is not None and len(x_pairs) > self.args.max_pairs:
-            max_pairs = self.args.max_pairs
-            idx = torch.randperm(len(x_pairs))[:max_pairs]
-            x_pairs = x_pairs[idx]
-            all_times = all_times[idx]
+        if self.args.max_pairs is not None:
+            if len(x_pairs) > self.args.max_pairs:
+                print(
+                    f"Selecting {self.args.max_pairs} pairs out of {len(x_pairs)} total pairs for training"
+                )
+                idx = torch.randperm(len(x_pairs))[: self.args.max_pairs]
+                x_pairs = x_pairs[idx]
+                all_times = all_times[idx]
+            else:
+                print(
+                    f"Total number of pairs {len(x_pairs):,} is less than given max_pairs {self.args.max_pairs} argument, using all pairs"
+                )
+        else:
+            print(
+                f"Using all {len(x_pairs):,} pairs for training since max_pairs is not set"
+            )
 
         return x_pairs, all_times
 
@@ -308,14 +323,10 @@ class N_Bridges(IMF_DSBM):
             .get_all()
             .to(device)
         )
-        if args.experiment_type == "latent":
-            generator = torch.Generator(device=device)
-            generator.manual_seed(args.seed)  # Seed fixe pour reproductibilité
-            idx = torch.randint(
-                0, z0.shape[0], (num_samples,), generator=generator, device=device
-            )
-        else:
-            idx = torch.randint(0, z0.shape[0], (num_samples,))
+        # Use a fixed seed so the same samples are picked every epoch
+        generator = torch.Generator(device="cpu")
+        generator.manual_seed(args.seed)
+        idx = torch.randint(0, z0.shape[0], (num_samples,), generator=generator)
 
         z0_sampled = z0[idx]
 
@@ -502,6 +513,47 @@ class N_Bridges(IMF_DSBM):
 
         return filepath
 
+    def _build_image_video_np(self, generated, n_samples=8):
+        """Build a numpy video array from generated trajectory tensors.
+
+        Args:
+            generated: list of tensors, each (N, C, H, W) in [-1, 1].
+            n_samples: max number of samples in the grid.
+
+        Returns:
+            numpy array of shape (T, C_rgb, grid_H, grid_W) in uint8.
+        """
+        n_samples = min(n_samples, generated[0].shape[0])
+        C, H, W = generated[0].shape[1:]
+        ncols = min(4, n_samples)
+        nrows = (n_samples + ncols - 1) // ncols
+
+        frames = []
+        for step_tensor in generated:
+            imgs = step_tensor[:n_samples].detach().cpu().float()
+            imgs = ((imgs + 1.0) / 2.0).clamp(0.0, 1.0)
+
+            if C == 1:
+                grid = torch.zeros(nrows * H, ncols * W)
+                for idx in range(n_samples):
+                    r, c = divmod(idx, ncols)
+                    grid[r * H : (r + 1) * H, c * W : (c + 1) * W] = imgs[idx, 0]
+                grid_rgb = grid.unsqueeze(-1).expand(-1, -1, 3)
+            else:
+                grid_rgb = torch.zeros(nrows * H, ncols * W, C)
+                for idx in range(n_samples):
+                    r, c = divmod(idx, ncols)
+                    grid_rgb[r * H : (r + 1) * H, c * W : (c + 1) * W, :] = imgs[
+                        idx
+                    ].permute(1, 2, 0)
+
+            frame_np = (grid_rgb.numpy() * 255).astype(np.uint8)
+            frames.append(frame_np)
+
+        video_np = np.stack(frames, axis=0)
+        video_np = np.transpose(video_np, (0, 3, 1, 2))  # (T, C, H, W)
+        return video_np
+
     def orchestrate_experiment(
         self,
         args,
@@ -543,10 +595,15 @@ class N_Bridges(IMF_DSBM):
             args.save_networks and outer_iter_idx % args.save_networks_n_epoch == 0
         )
 
-        do_save_geneneration = args.save_generation
+        do_save_geneneration = args.save_generation and (
+            outer_iter_idx % getattr(args, "save_generation_n_epoch", 1) == 0
+        )
+        do_video = getattr(args, "log_wandb_traj", False) and hasattr(
+            self, "datasets_train"
+        )
 
         # ───── Only run inference if needed
-        if do_plot or do_swd or do_mmd or do_energy or do_save_geneneration:
+        if do_plot or do_swd or do_mmd or do_energy or do_save_geneneration or do_video:
             datasets_for_generation = self.leave_out_datasets(datasets_inference)
             if args.rescale:
                 generated, generated_rescale, time = self.inference_test(
@@ -614,7 +671,9 @@ class N_Bridges(IMF_DSBM):
             metric_suffix = ""
             if generated is not None:
                 print(f"[METRICS] Using normalized data for metrics")
-                print(f"[METRICS] Generated shapes: {[g.shape for g in gen_for_metrics]}")
+                print(
+                    f"[METRICS] Generated shapes: {[g.shape for g in gen_for_metrics]}"
+                )
 
         # ───── SWD
         if do_swd and generated is not None:
@@ -756,6 +815,40 @@ class N_Bridges(IMF_DSBM):
                     )
         if do_save_geneneration:
             self.save_generation(generated, direction_to_train, outer_iter_idx)
+
+        # ───── Log image-based videos to wandb (for image data)
+        if (
+            getattr(args, "log_wandb_traj", False)
+            and generated is not None
+            and generated[0].ndim == 4  # (N, C, H, W) → image data
+        ):
+            # Video from test data (already computed above)
+            video_test = self._build_image_video_np(generated)
+            log_dict = {
+                f"video_test/{direction_to_train}": wandb.Video(
+                    video_test, fps=args.fps, format="mp4"
+                ),
+                "epoch": outer_iter_idx,
+            }
+
+            # Video from train data (separate inference with same fixed seed)
+            datasets_train_gen = self.leave_out_datasets(self.datasets_train)
+            generated_train, _ = self.inference_test(
+                args=args,
+                direction_tosample=direction_to_train,
+                net_dict=net_dict,
+                datasets_inference=datasets_train_gen,
+                outer_iter_idx=outer_iter_idx,
+                num_samples=args.num_sample_metric,
+                num_steps=args.num_simulation_steps,
+                sigma=args.sigma_inference,
+            )
+            video_train = self._build_image_video_np(generated_train)
+            log_dict[f"video_train/{direction_to_train}"] = wandb.Video(
+                video_train, fps=args.fps, format="mp4"
+            )
+
+            self.tracking_logger.log(log_dict)
 
         # ───── Save networks
         if do_save:

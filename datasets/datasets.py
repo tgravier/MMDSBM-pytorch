@@ -5,9 +5,11 @@ import numpy as np
 from sklearn.datasets import make_s_curve
 from datasets.datasets_registry import DatasetConfig
 import os
+import glob
 from sklearn.preprocessing import StandardScaler
 from typing import Union, Tuple, Optional
 import joblib
+from PIL import Image
 
 
 # datasets/datasets.py
@@ -293,6 +295,86 @@ def load_dataset(
                 TimedDataset(data_test, time, path),
             )
         return TimedDataset(torch.tensor(pcs, dtype=torch.float32), time, path)
+
+    elif name == "kth":
+        frame_dir = params["frame_dir"]
+        frame_rank = params["frame_rank"]
+        grayscale = params.get("grayscale", True)
+        normalize_per_image = params.get("normalize_per_image", False)
+
+        if not os.path.isdir(frame_dir):
+            raise FileNotFoundError(f"KTH frame directory not found: {frame_dir}")
+
+        # Frames are named: {video}_seq{i}_frame{orig:04d}.png
+        # We need to pick the frame_rank-th file per subsequence when sorted.
+        # Group by subsequence, then pick the frame_rank-th entry.
+        all_pngs = sorted(glob.glob(os.path.join(frame_dir, "*_seq*_frame*.png")))
+        if not all_pngs:
+            raise FileNotFoundError(f"No PNG files found in {frame_dir}")
+
+        # Group by subsequence prefix (everything before _frame)
+        from collections import defaultdict
+
+        subseq_frames: dict = defaultdict(list)
+        for p in all_pngs:
+            base = os.path.basename(p)
+            # Split at last "_frame" to get subsequence key
+            prefix = base.rsplit("_frame", 1)[0]
+            subseq_frames[prefix].append(p)
+
+        # For each subsequence, pick the frame at position frame_rank
+        selected_paths = []
+        for prefix in sorted(subseq_frames):
+            frames_sorted = sorted(subseq_frames[prefix])
+            if frame_rank >= len(frames_sorted):
+                raise IndexError(
+                    f"KTH subsequence {prefix!r} has {len(frames_sorted)} frames, "
+                    f"but frame_rank={frame_rank} requested"
+                )
+            selected_paths.append(frames_sorted[frame_rank])
+        print(
+            f"Selected {len(selected_paths)} frames for KTH dataset at time={time}; exerpt: {[p.split('/')[-1] for p in selected_paths[:5]]}"
+        )
+
+        # Load images into tensor, normalised to [-1, 1]
+        tensors = []
+        for p in selected_paths:
+            img = Image.open(p)
+            if grayscale:
+                img = img.convert("L")
+                arr = np.array(img, dtype=np.float32) / 127.5 - 1.0  # (H, W) in [-1, 1]
+                tensors.append(torch.tensor(arr).unsqueeze(0))  # (1, H, W)
+            else:
+                arr = (
+                    np.array(img, dtype=np.float32) / 127.5 - 1.0
+                )  # (H, W, 3) in [-1, 1]
+                tensors.append(torch.tensor(arr).permute(2, 0, 1))  # (3, H, W)
+
+        data_pt = torch.stack(tensors)  # (N, C, H, W)
+
+        if normalize_per_image:
+            # Per-image min-max normalization to [-1, 1]
+            for i in range(data_pt.shape[0]):
+                img_min = data_pt[i].min()
+                img_max = data_pt[i].max()
+                if img_max - img_min > 0:
+                    data_pt[i] = (data_pt[i] - img_min) / (img_max - img_min) * 2.0 - 1.0
+
+        if dim is not None:
+            # Flatten if dim is set (for MLP-based models)
+            data_pt = data_pt.view(data_pt.shape[0], -1)
+            if data_pt.shape[1] != dim:
+                raise ValueError(
+                    f"KTH flattened dim {data_pt.shape[1]} != expected dim {dim}"
+                )
+
+        if separation_train_test:
+            data_train, data_test = random_split(data_pt, nb_points_test)
+            return (
+                TimedDataset(data_train, time, frame_dir),
+                TimedDataset(data_test, time, frame_dir),
+            )
+        return TimedDataset(data_pt, time, frame_dir, type="large_scale")
 
     else:
         raise ValueError(f"Unknown dataset name: {name}")

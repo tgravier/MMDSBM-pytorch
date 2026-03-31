@@ -9,11 +9,31 @@ from sklearn.datasets import make_s_curve
 # === Dataset Registry Core ===
 # ============================
 
-ARTIFICIAL_DATASETS = ["gaussian", "spiral", "moon", "circle", "gaussian_mixture", "s_curve",]
-REAL_DATASETS = ["mnist", "cifar10","phate_traj_dim2", "biotine_latent","biotine_latent_flatten","mnist_unet","biotine","multi"]
+ARTIFICIAL_DATASETS = [
+    "gaussian",
+    "spiral",
+    "moon",
+    "circle",
+    "gaussian_mixture",
+    "s_curve",
+]
+REAL_DATASETS = [
+    "mnist",
+    "cifar10",
+    "phate_traj_dim2",
+    "biotine_latent",
+    "biotine_latent_flatten",
+    "mnist_unet",
+    "biotine",
+    "multi",
+    "kth",
+]
+
 
 class DatasetConfig:
-    def __init__(self, name: str, time: float, input_dim: Optional[int] = None, **params):
+    def __init__(
+        self, name: str, time: float, input_dim: Optional[int] = None, **params
+    ):
         if not self.is_valid_name(name):
             raise ValueError(f"Dataset '{name}' is not recognized.")
         if not isinstance(time, (float, int)):
@@ -51,20 +71,30 @@ class DatasetConfig:
         }
 
     def __repr__(self) -> str:
-        return (f"DatasetConfig(name={self.name}, type={self.type}, "
-                f"input_dim={self.input_dim}, time={self.time}, "
-                f"params={self.params})")
+        return (
+            f"DatasetConfig(name={self.name}, type={self.type}, "
+            f"input_dim={self.input_dim}, time={self.time}, "
+            f"params={self.params})"
+        )
+
 
 # ============================
 # === Dataset Variants ===
 # ============================
 
+
 class GaussianConfig(DatasetConfig):
     def __init__(self, time, mean=0.0, std=1.0, n_samples=1000, dim=2):
         mean_vec = self._ensure_vector(mean, dim)
         std_vec = self._ensure_vector(std, dim)
-        super().__init__("gaussian", time, input_dim=dim,
-                         mean=mean_vec, std=std_vec, n_samples=n_samples)
+        super().__init__(
+            "gaussian",
+            time,
+            input_dim=dim,
+            mean=mean_vec,
+            std=std_vec,
+            n_samples=n_samples,
+        )
 
     @staticmethod
     def _ensure_vector(val, dim):
@@ -78,20 +108,26 @@ class GaussianConfig(DatasetConfig):
         else:
             raise TypeError("mean and std must be scalars or sequences")
 
+
 class CircleConfig(DatasetConfig):
-    def __init__(self, time, n_samples=1000, center=(0.0, 0.0), radius=1.0, thickness=0.05):
+    def __init__(
+        self, time, n_samples=1000, center=(0.0, 0.0), radius=1.0, thickness=0.05
+    ):
         super().__init__(
-            "circle", time, input_dim=2,
-            n_samples=n_samples, center=center, radius=radius, thickness=thickness
+            "circle",
+            time,
+            input_dim=2,
+            n_samples=n_samples,
+            center=center,
+            radius=radius,
+            thickness=thickness,
         )
+
 
 class MoonConfig(DatasetConfig):
     def __init__(self, time, n_samples=1000, noise=0.1):
         self._validate_noise(noise)
-        super().__init__(
-            "moon", time, input_dim=2,
-            n_samples=n_samples, noise=noise
-        )
+        super().__init__("moon", time, input_dim=2, n_samples=n_samples, noise=noise)
 
     @staticmethod
     def _validate_noise(noise):
@@ -107,14 +143,18 @@ class GaussianMixtureConfig(DatasetConfig):
         n_components, dim = means.shape
 
         if stds.shape != (n_components, dim):
-            raise ValueError(f"Expected stds of shape ({n_components}, {dim}), got {stds.shape}")
+            raise ValueError(
+                f"Expected stds of shape ({n_components}, {dim}), got {stds.shape}"
+            )
 
         if weights is None:
             weights = np.ones(n_components) / n_components
         else:
             weights = np.array(weights)
             if weights.shape != (n_components,):
-                raise ValueError(f"weights must have shape ({n_components},), got {weights.shape}")
+                raise ValueError(
+                    f"weights must have shape ({n_components},), got {weights.shape}"
+                )
             if not np.isclose(np.sum(weights), 1.0):
                 raise ValueError("weights must sum to 1")
 
@@ -125,20 +165,21 @@ class GaussianMixtureConfig(DatasetConfig):
             means=means.tolist(),
             stds=stds.tolist(),
             weights=weights.tolist(),
-            n_samples=n_samples
+            n_samples=n_samples,
         )
+
 
 class SCurveConfig(DatasetConfig):
     def __init__(self, time, n_samples=1000, noise=0.0):
         if noise < 0:
             raise ValueError(f"'noise' must be >= 0, got {noise}")
-        super().__init__(
-            "s_curve", time, input_dim=2,
-            n_samples=n_samples, noise=noise
-        )
+        super().__init__("s_curve", time, input_dim=2, n_samples=n_samples, noise=noise)
+
 
 class PhateFromTrajectoryConfig(DatasetConfig):
-    def __init__(self, time: float, dim: int = 2, file_path: Optional[str] = None): # WARNING, each file of the phate data need to be separe in pcs_label_{idx}.npz file not a single file, one file by timesteps
+    def __init__(
+        self, time: float, dim: int = 2, file_path: Optional[str] = None
+    ):  # WARNING, each file of the phate data need to be separe in pcs_label_{idx}.npz file not a single file, one file by timesteps
         """
         Configuration pour le dataset réel 'phate_from_trajectory'.
 
@@ -148,17 +189,17 @@ class PhateFromTrajectoryConfig(DatasetConfig):
             file_path (str): Chemin vers le fichier .npz contenant les embeddings.
         """
 
-        path_to_use = file_path 
+        path_to_use = file_path
 
         super().__init__(
-            name="phate_traj_dim2",
-            time=time,
-            input_dim=dim,
-            file_path=path_to_use
+            name="phate_traj_dim2", time=time, input_dim=dim, file_path=path_to_use
         )
 
+
 class BiotineFlattenConfig(DatasetConfig):
-    def __init__(self, time: float, dim: int = 2, file_path: Optional[str] = None): # WARNING, each file of the phate data need to be separe in pcs_label_{idx}.npz file not a single file, one file by timesteps
+    def __init__(
+        self, time: float, dim: int = 2, file_path: Optional[str] = None
+    ):  # WARNING, each file of the phate data need to be separe in pcs_label_{idx}.npz file not a single file, one file by timesteps
         """
         Configuration pour le dataset réel 'biotine' encodé par le VAE de SD, en version flatten (C*H*W).
 
@@ -168,14 +209,14 @@ class BiotineFlattenConfig(DatasetConfig):
         """
 
         super().__init__(
-            name="biotine_latent_flatten",
-            time=time,
-            input_dim=dim,
-            file_path=file_path
+            name="biotine_latent_flatten", time=time, input_dim=dim, file_path=file_path
         )
 
+
 class BiotineLatentConfig(DatasetConfig):
-    def __init__(self, time: float, dim: int = 2, file_path: Optional[str] = None): # WARNING, each file of the phate data need to be separe in pcs_label_{idx}.npz file not a single file, one file by timesteps
+    def __init__(
+        self, time: float, dim: int = 2, file_path: Optional[str] = None
+    ):  # WARNING, each file of the phate data need to be separe in pcs_label_{idx}.npz file not a single file, one file by timesteps
         """
         Configuration pour le dataset réel 'biotine' encodé par le VAE de SD, en version image (C, H, W).
 
@@ -185,14 +226,14 @@ class BiotineLatentConfig(DatasetConfig):
         """
 
         super().__init__(
-            name="biotine_latent",
-            time=time,
-            input_dim=dim,
-            file_path=file_path
+            name="biotine_latent", time=time, input_dim=dim, file_path=file_path
         )
+
 
 class MNISTConfig(DatasetConfig):
-    def __init__(self, time: float, dim, file_path: Optional[str] = None): # WARNING, each file of the phate data need to be separe in pcs_label_{idx}.npz file not a single file, one file by timesteps
+    def __init__(
+        self, time: float, dim, file_path: Optional[str] = None
+    ):  # WARNING, each file of the phate data need to be separe in pcs_label_{idx}.npz file not a single file, one file by timesteps
         """
         Configuration pour le dataset réel 'phate_from_trajectory'.
 
@@ -202,17 +243,15 @@ class MNISTConfig(DatasetConfig):
             file_path (str): Chemin vers le fichier .npz contenant les embeddings.
         """
 
-        path_to_use = file_path 
+        path_to_use = file_path
 
-        super().__init__(
-            name="mnist",
-            time=time,
-            input_dim=dim,
-            file_path=path_to_use
-        )
+        super().__init__(name="mnist", time=time, input_dim=dim, file_path=path_to_use)
+
 
 class MNISTUnetConfig(DatasetConfig):
-    def __init__(self, time: float, dim, file_path: Optional[str] = None): # WARNING, each file of the phate data need to be separe in pcs_label_{idx}.npz file not a single file, one file by timesteps
+    def __init__(
+        self, time: float, dim, file_path: Optional[str] = None
+    ):  # WARNING, each file of the phate data need to be separe in pcs_label_{idx}.npz file not a single file, one file by timesteps
         """
         Configuration pour le dataset réel 'phate_from_trajectory'.
 
@@ -222,13 +261,10 @@ class MNISTUnetConfig(DatasetConfig):
             file_path (str): Chemin vers le fichier .npz contenant les embeddings.
         """
 
-        path_to_use = file_path 
+        path_to_use = file_path
 
         super().__init__(
-            name="mnist_unet",
-            time=time,
-            input_dim=dim,
-            file_path=path_to_use
+            name="mnist_unet", time=time, input_dim=dim, file_path=path_to_use
         )
 
 
@@ -243,9 +279,39 @@ class MultiConfig(DatasetConfig):
             dim (int): PCA dimension (e.g., 5 or 100).
             file_path (str): Path to the .npz file containing 'pcs' array.
         """
+        super().__init__(name="multi", time=time, input_dim=dim, file_path=file_path)
+
+
+class KTHConfig(DatasetConfig):
+    def __init__(
+        self,
+        time: float,
+        frame_dir: str,
+        frame_rank: int,
+        dim: Optional[int] = None,
+        grayscale: bool = True,
+        normalize_per_image: bool = False,
+    ):
+        """Configuration for one time-point of the KTH Actions dataset.
+
+        Each time-point corresponds to a frame rank (0 .. n_frames-1) across
+        all preprocessed subsequences.  The loader globs
+        ``frame_dir/*_frame{frame_rank:04d}.png`` (or the equivalent
+        naming produced by preprocess_kth.py) and stacks them into a tensor.
+
+        Args:
+            time: Normalised time for the bridge.
+            frame_dir: Directory with preprocessed PNGs from preprocess_kth.py.
+            frame_rank: Which of the n_frames subsampled positions this is.
+            dim: Flattened pixel dimension (auto-detected if None).
+            grayscale: Convert RGB to grayscale (KTH videos are already BW).
+        """
         super().__init__(
-            name="multi",
+            name="kth",
             time=time,
             input_dim=dim,
-            file_path=file_path
+            frame_dir=frame_dir,
+            frame_rank=frame_rank,
+            grayscale=grayscale,
+            normalize_per_image=normalize_per_image,
         )

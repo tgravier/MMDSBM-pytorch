@@ -58,13 +58,14 @@ def load_config(
             if hasattr(experiment_cfg, key):
                 setattr(experiment_cfg, key, value)
 
-        # Update experiment name to reflect overrides
-        sigma_str = f"sigma{experiment_cfg.sigma}"
-        loo_str = "loo" + "_".join(str(x) for x in experiment_cfg.leave_out_list)
-        seed_str = f"seed{experiment_cfg.seed}"
-        experiment_cfg.experiment_name = (
-            f"{config_name}_{sigma_str}_{loo_str}_{seed_str}"
-        )
+        # Update experiment name to reflect overrides (unless explicitly overridden)
+        if "experiment_name" not in cli_overrides:
+            sigma_str = f"sigma{experiment_cfg.sigma}"
+            loo_str = "loo" + "_".join(str(x) for x in experiment_cfg.leave_out_list)
+            seed_str = f"seed{experiment_cfg.seed}"
+            experiment_cfg.experiment_name = (
+                f"{config_name}_{sigma_str}_{loo_str}_{seed_str}"
+            )
 
     exp_root = Path(experiment_cfg.experiment_dir)
     exp_path = exp_root / experiment_cfg.experiment_name
