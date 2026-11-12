@@ -14,3 +14,4 @@ datasets/data/mnist
 *.code-workspace
 
 sweep_logs
+DSBM_N_BRIDGES_KTH_v2
