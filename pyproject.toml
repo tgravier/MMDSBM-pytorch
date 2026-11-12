@@ -24,11 +24,17 @@ dependencies = [
     "python-magic>=0.4.27",
     "scikit-learn>=1.6.1",
     "scipy>=1.15.3",
+    "seaborn>=0.13.2",
     "sentencepiece>=0.2.1",
     "torch>=2.7.0",
+    "torch-fidelity",
     "torchaudio>=2.7.0",
+    "torchmetrics[image]>=1.8.2",
     "torchvision>=0.22.0",
     "tqdm>=4.67.1",
     "transformers>=4.55.4",
     "wandb>=0.20.1",
 ]
+
+[tool.uv.sources]
+torch-fidelity = { git = "https://github.com/toshas/torch-fidelity.git" }
