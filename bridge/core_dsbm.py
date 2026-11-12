@@ -239,6 +239,16 @@ class IMF_DSBM:
 
             self.ema_dict[direction].update(_orig_mod)
 
+            # Periodic video logging during warmup
+            warmup_video_every = getattr(self.args, "warmup_log_video_every", 0)
+            if (
+                is_warmup
+                and warmup_video_every > 0
+                and (inner_opt_step + 1) % warmup_video_every == 0
+                and hasattr(self, "log_warmup_videos")
+            ):
+                self.log_warmup_videos(direction, inner_opt_step + 1)
+
             pbar.set_postfix(loss=loss.item())
             loss_curve.append(loss.item())
             grad_curve.append(total_norm)

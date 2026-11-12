@@ -516,6 +516,39 @@ class N_Bridges(IMF_DSBM):
 
         return filepath
 
+    def log_warmup_videos(self, direction, inner_step):
+        """Generate and log train+test videos to wandb during warmup."""
+        args = self.args
+        if not getattr(args, "log_wandb_traj", False):
+            return
+        if not hasattr(self, "datasets_train"):
+            return
+
+        ema_dict = self.ema_dict
+
+        for label, datasets in [("test", self.datasets_test), ("train", self.datasets_train)]:
+            if datasets is None:
+                continue
+            ds_gen = self.leave_out_datasets(datasets)
+            generated, _ = self.inference_test(
+                args=args,
+                direction_tosample=direction,
+                net_dict=ema_dict,
+                datasets_inference=ds_gen,
+                outer_iter_idx=0,
+                num_samples=args.num_sample_metric,
+                num_steps=args.num_simulation_steps,
+                sigma=args.sigma_inference,
+            )
+            if generated is not None and generated[0].ndim == 4:
+                video = self._build_image_video_np(generated)
+                self.tracking_logger.log({
+                    f"warmup_video_{label}/{direction}": wandb.Video(
+                        video, fps=args.fps, format="mp4"
+                    ),
+                    "warmup_step": inner_step,
+                })
+
     def _build_image_video_np(self, generated, n_samples=8):
         """Build a numpy video array from generated trajectory tensors.
 
