@@ -1,0 +1,80 @@
+Loaded Experiment Configuration:
+-----------------------------------
+accelerator         : <accelerate.accelerator.Accelerator object at 0x7fa39a144cd0>
+batch_size          : 1024
+chunk_size          : 20000
+coeff_sigma         : 1
+compute_w1          : True
+debug               : False
+decay_ema           : 0.9999
+dim                 : 100
+display_energy      : False
+display_energy_n_epoch: 3
+display_mmd         : True
+display_mmd_n_epoch : 3
+display_swd         : True
+display_swd_n_epoch : 3
+distribution_cfg    : <conf.conf_classes.multi_dim100_whitened.DistributionConfig object at 0x7fa39a144910>
+distributions       : DistributionConfig with 4 distributions
+ema                 : True
+eps                 : 0.001
+experiment_dir      : experiments
+experiment_name     : multi_dim100_whitened_sigma0.2_loo2_seed21442
+experiment_type     : 
+first_coupling      : ind
+first_direction     : backward
+fps                 : 20
+gpu_id              : 0
+grad_clip           : 1
+leave_out_list      : [2]
+log_wandb_energy    : False
+log_wandb_loss      : True
+log_wandb_mmd       : True
+log_wandb_swd       : True
+log_wandb_traj      : True
+loss_scale          : True
+lr                  : 0.0001
+max_pairs           : 100000
+mmd_blur            : 1.0
+mmd_kernel          : rbf
+model_name          : mlp
+n_distributions     : 4
+nb_inner_opt_steps  : 10000
+nb_outer_iterations : 100
+nb_points_test      : 1000
+net_bwd_layers      : [256, 256, 256]
+net_bwd_time_dim    : 128
+net_fwd_layers      : [256, 256, 256]
+net_fwd_time_dim    : 128
+num_sample_metric   : 1000
+num_sample_vis      : 1024
+num_simulation_steps: 150
+number_traj         : 20
+optimizer_params    : {'betas': (0.9, 0.999), 'weight_decay': 0.01}
+optimizer_type      : adamw
+plot_traj           : False
+plot_vis            : True
+plot_vis_n_epoch    : 3
+project_name        : DSBM_N_BRIDGES_MULTI
+recreate_dataset    : False
+rescale             : True
+save_generation     : True
+save_networks       : True
+save_networks_n_epoch: 3
+seed                : 21442
+separation_train_test: True
+sigma               : 0.2
+sigma_inference     : 0.2
+sigma_linspace      : None
+sigma_mode          : mono
+warmup              : True
+warmup_epoch        : 0
+warmup_nb_inner_opt_steps: 2000
+-----------------------------------
+Loaded Distribution Bridges:
+-----------------------------------
+MultiConfig     | name=multi, type=real, input_dim=100, time=0.0, params={'file_path': '/projects/static2dynamic/datasets/Multiome/dim100_whitened/time_0.npz'}
+MultiConfig     | name=multi, type=real, input_dim=100, time=1.0, params={'file_path': '/projects/static2dynamic/datasets/Multiome/dim100_whitened/time_1.npz'}
+MultiConfig     | name=multi, type=real, input_dim=100, time=2.0, params={'file_path': '/projects/static2dynamic/datasets/Multiome/dim100_whitened/time_2.npz'}
+MultiConfig     | name=multi, type=real, input_dim=100, time=3.0, params={'file_path': '/projects/static2dynamic/datasets/Multiome/dim100_whitened/time_3.npz'}
+-----------------------------------

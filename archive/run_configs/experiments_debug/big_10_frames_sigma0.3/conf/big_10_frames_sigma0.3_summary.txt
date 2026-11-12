@@ -1,0 +1,88 @@
+Loaded Experiment Configuration:
+-----------------------------------
+accelerator         : <accelerate.accelerator.Accelerator object at 0x7ff7b88152a0>
+batch_size          : 128
+block_out_channels  : (64, 128, 256)
+chunk_size          : 128
+coeff_sigma         : 1
+debug               : True
+decay_ema           : 0.9999
+dim                 : None
+display_energy      : False
+display_energy_n_epoch: 1
+display_mmd         : False
+display_mmd_n_epoch : 1
+display_swd         : False
+display_swd_n_epoch : 1
+distribution_cfg    : <loaded_config.DistributionConfig object at 0x7ff7b8815030>
+distributions       : DistributionConfig with 10 distributions
+down_block_types    : ('DownBlock2D', 'DownBlock2D', 'DownBlock2D')
+ema                 : True
+eps                 : 0.001
+experiment_dir      : experiments_debug
+experiment_name     : big_10_frames_sigma0.3
+experiment_type     : 
+first_coupling      : ind
+first_direction     : backward
+fps                 : 10
+gpu_id              : 1
+grad_clip           : 1
+layers_per_block    : 2
+leave_out_list      : []
+log_wandb_energy    : False
+log_wandb_loss      : True
+log_wandb_mmd       : False
+log_wandb_swd       : False
+log_wandb_traj      : True
+loss_scale          : True
+lr                  : 0.0001
+max_pairs           : None
+mmd_blur            : 1.0
+mmd_kernel          : rbf
+model_name          : hf_unet
+n_distributions     : 10
+nb_channels         : 1
+nb_inner_opt_steps  : 20000
+nb_outer_iterations : 30
+nb_points_test      : 30
+num_sample_metric   : 10
+num_sample_vis      : 64
+num_simulation_steps: 900
+number_traj         : 20
+optimizer_params    : {'betas': (0.9, 0.999), 'weight_decay': 0.01}
+optimizer_type      : adamw
+plot_traj           : False
+plot_vis            : False
+plot_vis_n_epoch    : 1
+project_name        : DSBM_N_BRIDGES_KTH
+recreate_dataset    : False
+rescale             : False
+sample_size         : (120, 160)
+save_generation     : False
+save_networks       : True
+save_networks_n_epoch: 5
+seed                : 99070
+separation_train_test: True
+sigma               : 0.3
+sigma_inference     : 0.3
+sigma_linspace      : None
+sigma_mode          : mono
+time_embedding_type : positional
+up_block_types      : ('UpBlock2D', 'UpBlock2D', 'UpBlock2D')
+warmup              : True
+warmup_epoch        : 0
+warmup_nb_inner_opt_steps: 100000
+-----------------------------------
+Loaded Distribution Bridges:
+-----------------------------------
+KTHConfig       | name=kth, type=real, input_dim=None, time=0.0, params={'frame_dir': '/projects/static2dynamic/datasets/KTH_Actions/10_frames', 'frame_rank': 0, 'grayscale': True, 'normalize_per_image': False}
+KTHConfig       | name=kth, type=real, input_dim=None, time=1.0, params={'frame_dir': '/projects/static2dynamic/datasets/KTH_Actions/10_frames', 'frame_rank': 1, 'grayscale': True, 'normalize_per_image': False}
+KTHConfig       | name=kth, type=real, input_dim=None, time=2.0, params={'frame_dir': '/projects/static2dynamic/datasets/KTH_Actions/10_frames', 'frame_rank': 2, 'grayscale': True, 'normalize_per_image': False}
+KTHConfig       | name=kth, type=real, input_dim=None, time=3.0, params={'frame_dir': '/projects/static2dynamic/datasets/KTH_Actions/10_frames', 'frame_rank': 3, 'grayscale': True, 'normalize_per_image': False}
+KTHConfig       | name=kth, type=real, input_dim=None, time=4.0, params={'frame_dir': '/projects/static2dynamic/datasets/KTH_Actions/10_frames', 'frame_rank': 4, 'grayscale': True, 'normalize_per_image': False}
+KTHConfig       | name=kth, type=real, input_dim=None, time=5.0, params={'frame_dir': '/projects/static2dynamic/datasets/KTH_Actions/10_frames', 'frame_rank': 5, 'grayscale': True, 'normalize_per_image': False}
+KTHConfig       | name=kth, type=real, input_dim=None, time=6.0, params={'frame_dir': '/projects/static2dynamic/datasets/KTH_Actions/10_frames', 'frame_rank': 6, 'grayscale': True, 'normalize_per_image': False}
+KTHConfig       | name=kth, type=real, input_dim=None, time=7.0, params={'frame_dir': '/projects/static2dynamic/datasets/KTH_Actions/10_frames', 'frame_rank': 7, 'grayscale': True, 'normalize_per_image': False}
+KTHConfig       | name=kth, type=real, input_dim=None, time=8.0, params={'frame_dir': '/projects/static2dynamic/datasets/KTH_Actions/10_frames', 'frame_rank': 8, 'grayscale': True, 'normalize_per_image': False}
+KTHConfig       | name=kth, type=real, input_dim=None, time=9.0, params={'frame_dir': '/projects/static2dynamic/datasets/KTH_Actions/10_frames', 'frame_rank': 9, 'grayscale': True, 'normalize_per_image': False}
+-----------------------------------
