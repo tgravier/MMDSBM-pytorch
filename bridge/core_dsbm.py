@@ -262,6 +262,8 @@ class IMF_DSBM:
         first_coupling=None,
     ):
         if outer_iter_idx <= self.args.warmup_epoch and self.first_pass:
+            # Move x_pairs to GPU for this function, then free when done
+            x_pairs = x_pairs.to(self.accelerator.device)
             if direction_to_train == "forward":
                 if first_coupling == "ref":
                     zstart = x_pairs[:, 0]
@@ -332,17 +334,22 @@ class IMF_DSBM:
 
         # if not first it
         else:
+            # Move x_pairs to GPU for this function, then free when done
+            x_pairs = x_pairs.to(self.accelerator.device)
             match direction_to_train:
                 case "forward":  # previous = backward
-                    zstart = x_pairs[:, 1]  # begin with t1
+                    zstart = x_pairs[:, 1].clone()  # clone to free x_pairs
                     previous_direction = "backward"
 
                 case "backward":  # previous = forward
-                    zstart = x_pairs[:, 0]  # begin with t0
+                    zstart = x_pairs[:, 0].clone()  # clone to free x_pairs
                     previous_direction = "forward"
 
                 case _:
                     raise ValueError(f"Unknown direction: {direction_to_train}")
+
+            del x_pairs
+            torch.cuda.empty_cache()
 
             zend = sampler.sample_sde(  # TODO see sample SDE
                 args,

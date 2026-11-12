@@ -244,14 +244,14 @@ def sample_sde(
                     sigma[mask] = sigma_interp[mask]
 
 
-    z = zstart.detach().clone()
-    dt = dt.view(*dt.shape, *([1] * (z.ndim - dt.ndim)))
+    z = zstart.detach().clone().float()  # float32 for numerical stability over many steps
+    dt = dt.view(*dt.shape, *([1] * (z.ndim - dt.ndim))).float()
 
 
     score = net_dict[direction_tosample].eval()
 
     sigma = args.coeff_sigma * sigma
-    sigma = sigma.view(*sigma.shape, *([1] * (z.ndim - sigma.ndim)))
+    sigma = sigma.view(*sigma.shape, *([1] * (z.ndim - sigma.ndim))).float()
 
     for i in tqdm(range(max_nb_steps), desc="SDE simulation (train)", leave=False):  # Starting from one to avoid the first nan which add just noise
         mask = ~torch.isnan(ts[:, i])  # mask to filter out NaNs
@@ -395,10 +395,11 @@ def inference_sample_sde(
                         i + 1, :
                     ].unsqueeze(0)
 
-    sigma = args.coeff_sigma * sigma
+    sigma = (args.coeff_sigma * sigma).float()
     score = net_dict[direction_tosample].eval().to(device)
 
-    z = zstart.detach().clone()
+    z = zstart.detach().clone().float()
+    dt = dt.float()
 
     traj = [z.detach().clone()]
     t_list = [ts[0]]

@@ -166,13 +166,9 @@ class N_Bridges(IMF_DSBM):
         time_dataset_init = [pair[0] for pair in forward_pairs]
         time_dataset_target = [pair[1] for pair in forward_pairs]
 
-        x0 = [
-            d.get_all().to(self.args.accelerator.device) for d in time_dataset_init
-        ]  # (n_times - 1, n_points, data_dim)
-
-        x1 = [
-            d.get_all().to(self.args.accelerator.device) for d in time_dataset_target
-        ]  # (n_times - 1, n_points, data_dim)
+        # Keep raw data on CPU for pair sampling to avoid GPU OOM
+        x0 = [d.get_all() for d in time_dataset_init]
+        x1 = [d.get_all() for d in time_dataset_target]
 
         assert len(x0) == len(x1), f"{len(x0)} != {len(x1)}"
 
@@ -187,20 +183,23 @@ class N_Bridges(IMF_DSBM):
 
             # sample with replacement in left marginal
             pairs_left_idx = torch.randint(nb_points_left, (nb_pairs,))
-            pairs_left = x0[bridge_idx][pairs_left_idx]  # (nb_pairs, data_dim)
+            pairs_left = x0[bridge_idx][pairs_left_idx]  # (nb_pairs, data_dim) on CPU
             all_left_of_pairs.append(pairs_left)
             # sample with replacement in right marginal
             pairs_right_idx = torch.randint(nb_points_right, (nb_pairs,))
-            pairs_right = x1[bridge_idx][pairs_right_idx]  # (nb_pairs, data_dim)
+            pairs_right = x1[bridge_idx][pairs_right_idx]  # (nb_pairs, data_dim) on CPU
             all_right_of_pairs.append(pairs_right)
 
             # times
             t_left = time_dataset_init[bridge_idx].get_time()
             t_right = time_dataset_target[bridge_idx].get_time()
-            t_left = torch.full((nb_pairs,), t_left).to(self.args.accelerator.device)
-            t_right = torch.full((nb_pairs,), t_right).to(self.args.accelerator.device)
+            t_left = torch.full((nb_pairs,), t_left)
+            t_right = torch.full((nb_pairs,), t_right)
             times = torch.stack([t_left, t_right], dim=1)  # (nb_pairs, 2)
             all_times.append(times)
+
+        # Free raw data before allocating x_pairs
+        del x0, x1
 
         all_left_of_pairs = torch.cat(all_left_of_pairs)
         all_right_of_pairs = torch.cat(all_right_of_pairs)
@@ -212,11 +211,9 @@ class N_Bridges(IMF_DSBM):
 
         x_pairs = torch.stack([all_left_of_pairs, all_right_of_pairs], dim=1)
         # (n_times - 1, nb_pairs, 2, data_dim)
+        del all_left_of_pairs, all_right_of_pairs
 
-        assert x0[0].ndim in (2, 4), (
-            f"Expected x0[0] to have 2 or 4 dimensions, but got {x0[0].ndim}"
-        )
-        data_dim = x0[0].size()[1:]
+        data_dim = x_pairs.size()[2:]  # (C, H, W) or (D,)
         x_pairs = x_pairs.reshape(-1, 2, *data_dim)
         # ((n_times - 1) * nb_pairs, 2, data_dim)
 
@@ -239,7 +236,7 @@ class N_Bridges(IMF_DSBM):
                 f"Using all {len(x_pairs):,} pairs for training since max_pairs is not set"
             )
 
-        return x_pairs, all_times
+        return x_pairs, all_times.to(self.args.accelerator.device)
 
     def train(self):
         for outer_iter_idx in range(self.args.nb_outer_iterations):
