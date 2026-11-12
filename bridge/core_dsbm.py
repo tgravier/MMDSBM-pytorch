@@ -115,7 +115,13 @@ class IMF_DSBM:
 
         nb_inner_opt_steps = self.args.nb_inner_opt_steps
 
-        is_warmup = self.args.warmup and outer_iter_idx == 0 and self.first_pass
+        is_resume = getattr(self.args, "resume_train", False)
+        is_warmup = (
+            self.args.warmup
+            and outer_iter_idx == 0
+            and self.first_pass
+            and not is_resume
+        )
         if is_warmup:
             print(f"WARMUP STEP {direction}")
             nb_inner_opt_steps = self.args.warmup_nb_inner_opt_steps

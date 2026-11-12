@@ -113,10 +113,28 @@ def main():
     logger.info("Logger initialized successfully.")
     logger.info(f"Experiment: {config_classes.experiment_name}")
 
+    # If resuming, try to recover wandb run ID from checkpoint meta
+    wandb_resume_id = None
+    if args.resume_train:
+        import json
+        meta_path = os.path.join(
+            config_classes.experiment_dir,
+            config_classes.experiment_name,
+            "network_weight",
+            "latest_checkpoint_meta.json",
+        )
+        if os.path.isfile(meta_path):
+            with open(meta_path, "r") as f:
+                meta = json.load(f)
+            wandb_resume_id = meta.get("wandb_run_id")
+            if wandb_resume_id:
+                logger.info(f"Resuming wandb run: {wandb_resume_id}")
+
     tracking_logger = WandbLogger(
         config=export_config_dict(config_classes=config_classes),
         project=config_classes.project_name,
         run_name=config_classes.experiment_name,
+        resume_id=wandb_resume_id,
     )
 
     if args.inference:

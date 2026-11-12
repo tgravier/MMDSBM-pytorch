@@ -239,64 +239,70 @@ class N_Bridges(IMF_DSBM):
         return x_pairs, all_times.to(self.args.accelerator.device)
 
     def train(self):
+        is_resume = getattr(self.args, "resume_train", False)
+        resume_epoch = getattr(self.args, "resume_train_nb_outer_iterations", 0)
+        resume_skip_first_half = getattr(self.args, "resume_skip_first_half", False)
+
+        first_dir = self.args.first_direction
+        second_dir = "forward" if first_dir == "backward" else "backward"
+
         for outer_iter_idx in range(self.args.nb_outer_iterations):
-            if outer_iter_idx == 0:
-                direction_to_train = self.args.first_direction
+            # Skip fully completed epochs on resume
+            if is_resume and outer_iter_idx < resume_epoch:
+                continue
 
             print(f"\n[Epoch {outer_iter_idx}]")
 
             forward_pairs = list(zip(self.datasets_train[:-1], self.datasets_train[1:]))
 
-            print(f"Training {direction_to_train.upper()} bridge")
+            # ── First half of epoch: train first_dir
+            skip_first = (
+                is_resume and outer_iter_idx == resume_epoch and resume_skip_first_half
+            )
 
+            if not skip_first:
+                print(f"Training {first_dir.upper()} bridge")
+                x_pairs, t_pairs = self.generate_dataset_pairs(forward_pairs)
+                loss_curve, grad_curve, net_dict, ema_dict = self.train_one_direction(
+                    direction=first_dir,
+                    x_pairs=x_pairs,
+                    t_pairs=t_pairs,
+                    outer_iter_idx=outer_iter_idx,
+                    logger=self.tracking_logger,
+                )
+                self.orchestrate_experiment(
+                    args=self.args,
+                    outer_iter_idx=outer_iter_idx,
+                    direction_to_train=first_dir,
+                    net_dict=ema_dict,
+                    loss_curve=loss_curve,
+                    grad_curve=grad_curve,
+                )
+            else:
+                print(f"Skipping {first_dir.upper()} (already completed before crash)")
+
+            # ── Second half of epoch: train second_dir
+            print(f"Training {second_dir.upper()} bridge")
             x_pairs, t_pairs = self.generate_dataset_pairs(forward_pairs)
-
             loss_curve, grad_curve, net_dict, ema_dict = self.train_one_direction(
-                direction=direction_to_train,
+                direction=second_dir,
                 x_pairs=x_pairs,
                 t_pairs=t_pairs,
                 outer_iter_idx=outer_iter_idx,
                 logger=self.tracking_logger,
             )
-
             self.orchestrate_experiment(
                 args=self.args,
                 outer_iter_idx=outer_iter_idx,
-                direction_to_train=direction_to_train,
-                net_dict=ema_dict,  # TODO create an intermediary pointer if ema_dict is false : like net_inference -> ema_dict or net_dict
-                loss_curve=loss_curve,
-                grad_curve=grad_curve,
-            )
-
-            if direction_to_train == "backward":
-                direction_to_train = "forward"
-            elif direction_to_train == "forward":
-                direction_to_train = "backward"
-
-            print(f"Training {direction_to_train.upper()} bridge")
-
-            x_pairs, t_pairs = self.generate_dataset_pairs(forward_pairs)
-            loss_curve, grad_curve, net_dict, ema_dict = self.train_one_direction(
-                direction=direction_to_train,
-                x_pairs=x_pairs,
-                t_pairs=t_pairs,
-                outer_iter_idx=outer_iter_idx,
-                logger=self.tracking_logger,
-            )
-
-            self.orchestrate_experiment(
-                args=self.args,
-                outer_iter_idx=outer_iter_idx,
-                direction_to_train=direction_to_train,
+                direction_to_train=second_dir,
                 net_dict=ema_dict,
                 loss_curve=loss_curve,
                 grad_curve=grad_curve,
             )
 
-            if direction_to_train == "backward":
-                direction_to_train = "forward"
-            elif direction_to_train == "forward":
-                direction_to_train = "backward"
+            # After the first resumed epoch, clear the resume flag
+            if is_resume:
+                is_resume = False
 
     def inference_test(
         self,
@@ -469,14 +475,14 @@ class N_Bridges(IMF_DSBM):
 
         # Save meta information to track last direction
         meta_path = os.path.join(weights_dir, "latest_checkpoint_meta.json")
+        meta = {
+            "last_saved_direction": direction_tosample,
+            "outer_iter_idx": outer_iter_idx,
+        }
+        if wandb.run is not None:
+            meta["wandb_run_id"] = wandb.run.id
         with open(meta_path, "w") as f:
-            json.dump(
-                {
-                    "last_saved_direction": direction_tosample,
-                    "outer_iter_idx": outer_iter_idx,
-                },
-                f,
-            )
+            json.dump(meta, f)
         return last_ckpt_path, archive_path
 
     def save_generation(self, generated, direction_to_train, outer_iter_idx):

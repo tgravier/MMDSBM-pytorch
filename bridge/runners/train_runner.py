@@ -177,11 +177,13 @@ class trainer_bridges(N_Bridges):
                 up_block_types=self.experiment_config.up_block_types,
                 layers_per_block=self.experiment_config.layers_per_block,
             )
-            
+
             net_fwd._orig_forward = net_fwd.forward
             net_bwd._orig_forward = net_bwd.forward
 
-            def wrapped_forward(self, sample, timestep, class_labels=None, return_dict=None):
+            def wrapped_forward(
+                self, sample, timestep, class_labels=None, return_dict=None
+            ):
                 out = self._orig_forward(sample, timestep.squeeze(), return_dict=False)
 
                 return out[0]
@@ -251,6 +253,7 @@ class trainer_bridges(N_Bridges):
                 checkpoints[direction] = torch.load(
                     checkpoint_path,
                     map_location=self.experiment_config.accelerator.device,
+                    weights_only=False,
                 )
             else:
                 print(
@@ -261,13 +264,21 @@ class trainer_bridges(N_Bridges):
             raise FileNotFoundError("No checkpoints found in the weight directory.")
 
         # === Load networks and optimizers
+        # Checkpoints are saved from EMA models (unwrapped), but at resume
+        # time the networks may already be wrapped by torch.compile via
+        # Accelerator (OptimizedModule with _orig_mod. prefix).  Load into
+        # the inner module when a wrapper is present.
+        def _load_net(net, state_dict):
+            target = getattr(net, "_orig_mod", net)
+            target.load_state_dict(state_dict)
+
         if "forward" in checkpoints:
-            self.net_fwd.load_state_dict(checkpoints["forward"]["state_dict"])
+            _load_net(self.net_fwd, checkpoints["forward"]["state_dict"])
             self.optimizer["forward"].load_state_dict(
                 checkpoints["forward"]["optimizer_state"]
             )
         if "backward" in checkpoints:
-            self.net_bwd.load_state_dict(checkpoints["backward"]["state_dict"])
+            _load_net(self.net_bwd, checkpoints["backward"]["state_dict"])
             self.optimizer["backward"].load_state_dict(
                 checkpoints["backward"]["optimizer_state"]
             )
@@ -287,26 +298,41 @@ class trainer_bridges(N_Bridges):
 
         # === Restore RNG
         rng_state = checkpoints[prev_direction]["rng_state"]
-        torch.set_rng_state(rng_state["torch"])
-        if torch.cuda.is_available():
-            torch.cuda.set_rng_state_all(rng_state["cuda"])
+        torch_rng = rng_state["torch"]
+        if isinstance(torch_rng, list):
+            torch_rng = torch.ByteTensor(torch_rng)
+        torch.set_rng_state(torch_rng)
+        if torch.cuda.is_available() and rng_state["cuda"]:
+            cuda_states = [
+                torch.ByteTensor(s) if isinstance(s, list) else s
+                for s in rng_state["cuda"]
+            ]
+            torch.cuda.set_rng_state_all(cuda_states)
         random.setstate(rng_state["random"])
         np.random.set_state(rng_state["numpy"])
 
         # === Set resume values
-        self.experiment_config.resume_train_nb_outer_iterations = (
-            last_iter + 1 if prev_direction == "backward" else last_iter
-        )
-        self.experiment_config.previous_direction_to_train = (
-            "backward" if prev_direction == "forward" else "forward"
-        )
+        # Each epoch trains first_direction then opposite. Determine where we stopped.
+        first_dir = self.experiment_config.first_direction
+        second_dir = "forward" if first_dir == "backward" else "backward"
 
-        print(
-            f"=> Resuming from outer_iter_idx {self.experiment_config.resume_train_nb_outer_iterations}"
-        )
-        print(
-            f"=> Switching direction to: {self.experiment_config.previous_direction_to_train}"
-        )
+        if prev_direction == second_dir:
+            # Second half of the epoch completed → full epoch done
+            resume_epoch = last_iter + 1
+            resume_skip_first_half = False
+        else:
+            # Only first half completed → resume mid-epoch
+            resume_epoch = last_iter
+            resume_skip_first_half = True
+
+        self.experiment_config.resume_train_nb_outer_iterations = resume_epoch
+        self.experiment_config.resume_skip_first_half = resume_skip_first_half
+
+        print(f"=> Resuming from outer_iter_idx {resume_epoch}")
+        if resume_skip_first_half:
+            print(f"=> Skipping already-completed {first_dir} half, starting with {second_dir}")
+        else:
+            print(f"=> Starting fresh epoch with {first_dir}")
 
         # Start training loop
         self.launch_experiment()
